@@ -420,7 +420,7 @@ do
         update=true
         ;;
     "--check" | "-C")
-        if "$uninstall" || "$update" || "$install" || "$reinstall" || "$forceNewest" != "stable" ] || [ "$driver" || "$reinstall" || "$cuda" || "$minimal" || "$enabler"
+        if "$uninstall" || "$update" || "$install" || "$reinstall" || [ "$forceNewest" != "stable" ] || [ "$driver" || "$reinstall" || "$cuda" || "$minimal" || "$enabler"
         then
             echo "ERROR: Conflicting arguments with --check | -C"
             irupt
