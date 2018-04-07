@@ -43,9 +43,11 @@ echo "macOS-eGPU.sh has been started..."
 echo "Do not force quit the script!"
 echo "It might render your Mac unrepairable."
 echo "Do not use without backup."
-echo "It is strongly recommended to use the uninstall function before every macOS update."
-trap '' INT
+echo "It is strongly recommended to use the uninstall function before every macOS update/upgrade."
+echo "The script will continue in 10 seconds. Quit (press ^C) now if you don't have a backup."
+trap '{ echo; echo "You aborted the script. Nothing has been changed."; exit 1; }' INT
 sleep 10
+trap '' INT
 echo
 echo
 
@@ -155,7 +157,7 @@ check=false
 ### script parameter #Advanced
 reinstall=false
 autoUpdate=false
-noReboot=true
+noReboot=false
 minimal=false
 forceNewest=false
 
@@ -403,7 +405,7 @@ do
         fi
         install=true
         ;;
-    "--uninstall" | "-u")
+    "--uninstall" | "-U")
         if "$install" || "$update" || "$check" || "$forceNewest" || "$reinstall" || "$check"
         then
             echo "ERROR: Conflicting arguments with --uninstall | -u"
@@ -411,7 +413,7 @@ do
         fi
         uninstall=true
         ;;
-    "--update" | "-U")
+    "--update" | "-u")
         if "$install" || "$uninstall" || "$check"
         then
             echo "ERROR: Conflicting arguments with --update | -U"
@@ -419,7 +421,7 @@ do
         fi
         update=true
         ;;
-    "--check" | "-C")
+    "--checkSystem" | "-C")
         if "$uninstall" || "$update" || "$install" || "$reinstall" || [ "$forceNewest" != "stable" ] || [ "$driver" || "$reinstall" || "$cuda" || "$minimal" || "$enabler"
         then
             echo "ERROR: Conflicting arguments with --check | -C"
@@ -427,7 +429,7 @@ do
         fi
         check=true
         ;;
-    "--driver" | "-d")
+    "--nvidiaDriver" | "-n")
         if "$update" || "$check"
         then
             echo "ERROR: Conflicting arguments with --driver | -d"
@@ -435,7 +437,7 @@ do
         fi
         driver=true
         ;;
-    "--forceReinstall" | "-r")
+    "--forceReinstall" | "-R")
         if "$uninstall" || "$check"
         then
             echo "ERROR: Conflicting arguments with --forceReinstall | -r"
@@ -443,7 +445,7 @@ do
         fi
         reinstall=true
         ;;
-    "--forceNewest" | "-n")
+    "--forceNewest" | "-N")
         if "$uninstall" || "$check"
         then
             echo "ERROR: Conflicting arguments with --forceNewest | -n"
@@ -507,8 +509,8 @@ do
         fi
         minimal=true
         ;;
-    "--reboot" | "-r")
-        noReboot=false
+    "--noReboot" | "-r")
+        noReboot=true
         ;;
     *)
         if [ "$lastParam" == "--driver" ] || [ "$lastParam" == "-d" ]
@@ -865,7 +867,7 @@ function uninstallCudaDriver {
     then
         doneSomething=true
         scheduleReboot=true
-        listOfChanges="$listOfChanges""\n""-CUDA drivers have been uninstalled"
+        listOfChanges="$listOfChanges""\n""-CUDA $cudaDriverVersion drivers have been uninstalled"
     fi
 }
 
@@ -886,7 +888,7 @@ function uninstallCudaDeveloperDriver {
     then
         sudo perl "$cudaDeveloperDriverUnInstallScript"
         doneSomething=true
-        listOfChanges="$listOfChanges""\n""-CUDA developer drivers have been uninstalled"
+        listOfChanges="$listOfChanges""\n""-CUDA $cudaDriverVersion developer drivers have been uninstalled"
     fi
 }
 
@@ -895,7 +897,7 @@ function uninstallCudaToolkit {
     if [ -e "$cudaToolkitUnInstallScript" ]
     then
         sudo perl "$cudaToolkitUnInstallScript"
-        listOfChanges="$listOfChanges""\n""-CUDA $version toolkit has been uninstalled"
+        listOfChanges="$listOfChanges""\n""-CUDA $cudaVersion toolkit has been uninstalled"
         doneSomething=true
     fi
 }
@@ -905,7 +907,7 @@ function uninstallCudaSamples {
     if [ -e "$cudaSamplesDir" ] && [ -e "$cudaToolkitUnInstallScript" ]
     then
         sudo perl "$cudaToolkitUnInstallScript" --manifest="$cudaToolkitUnInstallDir"".cuda_samples_uninstall_manifest_do_not_delete.txt"
-        listOfChanges="$listOfChanges""\n""-CUDA $version samples have been uninstalled"
+        listOfChanges="$listOfChanges""\n""-CUDA $cudaVersion samples have been uninstalled"
         doneSomething=true
     fi
 }
@@ -1005,8 +1007,9 @@ function uninstallEnabler1013 {
     then
         sudo rm -rf "$enabler1013"
         listOfChanges="$listOfChanges""\n""-eGPU support (High Sierra) has been uninstalled"
-        scheduleReboot=1
-        doneSomething=1
+        scheduleReboot=true
+        doneSomething=true
+        scheduleKextTouch=true
     fi
 }
 
