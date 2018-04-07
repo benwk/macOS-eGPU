@@ -32,24 +32,14 @@
 
 
 #   beginning of the script
-
-#   Subroutine A: Preparations ##############################################################################################################
-##  Subroutine A1: Basic preparations: path definition
+#   only Subroutine A3 contains function exectution before the very end
 
 #   create some space
 echo
 echo
-echo "macOS-eGPU.sh has been started..."
-echo "Do not force quit the script!"
-echo "It might render your Mac unrepairable."
-echo "Do not use without backup."
-echo "It is strongly recommended to use the uninstall function before every macOS update/upgrade."
-echo "The script will continue in 10 seconds. Quit (press ^C) now if you don't have a backup."
-trap '{ echo; echo "You aborted the script. Nothing has been changed."; exit 1; }' INT
-sleep 10
-trap '' INT
-echo
-echo
+
+#   Subroutine A: Preparations ##############################################################################################################
+##  Subroutine A1: Basic preparations: path definition
 
 #   paths
 ##  script specific information
@@ -59,7 +49,6 @@ gitPath="https://raw.githubusercontent.com/learex/macOS-eGPU/""$branch"
 
 ##  external functions
 pbuddy="/usr/libexec/PlistBuddy"
-closeAppScriptOnline="$gitPath""/closeApps.scpt"
 
 ##  static data download paths
 ### enabler paths
@@ -81,7 +70,7 @@ cudaToolkitWebsite="https://developer.nvidia.com/cuda-downloads?target_os=MacOSX
 ##  enabler paths
 enabler1012ScriptOnline="https://raw.githubusercontent.com/goalque/automate-eGPU/master/automate-eGPU.sh"
 ### Thunderbolt 1/2 support path
-tEnablerScriptOnline="https://raw.githubusercontent.com/mayankk2308/purge-wrangler/master/purge-wrangler.sh"
+tEnabler1013ScriptOnline="https://raw.githubusercontent.com/mayankk2308/purge-wrangler/master/purge-wrangler.sh"
 ### CUDA paths
 cudaDriverVolPath="/Volumes/CUDADriver/"
 cudaDriverPKGName="CUDADriver.pkg"
@@ -96,11 +85,7 @@ cudaToolkitPKGName="CUDAMacOSXInstaller.app/Contents/MacOS/CUDAMacOSXInstaller"
 ### NVIDIA driver paths
 nvidiaDriverUnInstallPKG="/Library/PreferencePanes/NVIDIA Driver Manager.prefPane/Contents/MacOS/NVIDIA Web Driver Uninstaller.app/Contents/Resources/NVUninstall.pkg"
 ### CUDA paths
-cudaDriverUnInstallScriptOnline="$gitPath""/Subroutines/cudaDriverUninstall.sh"
-cudaResidueUnInstallScriptOnline="$gitPath""/Subroutines/cudaResidueUninstall.sh"
 cudaDeveloperDriverUnInstallScript="/usr/local/bin/uninstall_cuda_drv.pl"
-### 10.12 enabler
-enabler1012rUnInstallScriptOnline="$gitPath""/Subroutines/rastafabiUninstall.sh"
 
 ##  dynamic uninstallation paths
 ### CUDA paths
@@ -123,8 +108,8 @@ enabler1012r1="/Applications/Uninstall Rastafabi's eGPU Enabler.app"
 ### 10.13 enabler
 enabler1013="/Library/Extensions/NVDAEGPUSupport.kext"
 ### unlock thunderbolt enabler
-tEnabler1="/Library/Application Support/Purge-Wrangler/manifest.wglr"
-tEnabler2="/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext/Contents/MacOS/AppleGPUWrangler"
+tEnabler10131="/Library/Application Support/Purge-Wrangler/manifest.wglr"
+tEnabler10132="/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext/Contents/MacOS/AppleGPUWrangler"
 
 ##  dynamic test paths
 ### CUDA paths
@@ -211,8 +196,8 @@ enabler1013Installed=false
 enabler1012rInstalled=false
 enabler1012gInstalled=false
 ####thunderbolt enabler
-tEnablerInstalled=false
-tEnablerInstallStatus=0
+tEnabler1013Installed=false
+tEnabler1013InstallStatus=0
 
 
 
@@ -260,8 +245,14 @@ function systemClean {
 
 #   quit all running apps
 function quitAllApps {
-    echo "Wating until all apps are closed..."
-    osascript <(curl -s "$closeAppScriptOnline")
+    echo "Closing all apps..."
+    appsToQuit=$(osascript -e 'tell application "System Events" to set quitapps to name of every application process whose visible is true and name is not "Finder" and name is not "Terminal"' -e 'return quitapps')
+    appsToQuit="${appsToQuit//, /\n}"
+    appsToQuit="$(echo -e $appsToQuit)"
+    while read -r appNameToQuit
+    do
+        killall "$appNameToQuit"
+    done <<< "$appsToQuit"
 }
 
 #   finish handling
@@ -282,7 +273,7 @@ function printTweaks {
 
 ##  wait handler
 function waiter {
-    trap '{ echo; echo "Abort..."; irupt; }' INT
+    trapWithoutWarning
     echo "To safely stop the script now press ^C."
     if [ "$1" == 1 ]
     then
@@ -294,7 +285,7 @@ function waiter {
         echo "The system will continue in $1 seconds ..."
     fi
     sleep "$1"
-    trap trapIrupt INT
+    trapWithWarning
 }
 
 ##  reboot handler
@@ -363,7 +354,7 @@ function ask {
             echo "The reboot will be omitted."
             noReboot=true
         fi
-        finish
+        irupt
     fi
 }
 
@@ -382,15 +373,52 @@ function trapIrupt {
         irupt
     fi
 }
-### Activate trap (this is OK here since all necessary functions have been defined)
-trap trapIrupt INT
+### trap functions
+####trap variant with warning
+function trapWithWarning {
+    trap trapIrupt INT
+}
+
+####trap variant without warning
+function trapWithoutWarning {
+    trap '{ echo; echo "Abort..."; irupt; }' INT
+}
+
+####deactivate abort
+function trapLock {
+    trap '' INT
+}
+
+####activate abort
+function trapUnlock {
+    trap - INT
+}
+
+#   startup warnings
+function scriptWarningBegin {
+    trapWithoutWarning
+    echo "All apps will be force closed. Quit (press ^C) now to abort."
+    echo "Do not use without backup."
+    echo "It is strongly recommended to use the uninstall function before every macOS update/upgrade."
+    echo "The script will continue in 10 seconds. Quit (press ^C) now if you don't have a backup."
+    trap '{ echo; echo "You aborted the script. Nothing has been changed."; exit 1; }' INT
+    sleep 10
+    trapLock
+    echo
+    echo
+    echo "macOS-eGPU.sh has been started..."
+    echo "Do not force quit the script!"
+    echo "It might render your Mac unrepairable."
+    echo
+    echo
+}
 
 ################################################    /no function exectuion here due to cross referencing
 
 
 
 
-##  Subroutine A3: Parameter
+##  Subroutine A3: Parameter - here are the only function executions before the very end
 ### Parse parameters
 lastParam=""
 for options in "$@"
@@ -769,60 +797,60 @@ function checkEnabler1013Install {
 #   Subroutine B7: define unlock thunderbolt information functions
 ##  get detailed information about the TEnabler installation
 ##  Binary: upgrade | update | patchedMatch | unPatchedMatch | patched == unPatched
-function refineTEnablerInstall {
-    checkSumWrangler=$(shasum -a 256 "$tEnabler2" | awk '{ print $1 }')
+function refineTEnabler1013Install {
+    checkSumWrangler=$(shasum -a 256 "$tEnabler10132" | awk '{ print $1 }')
     fetchOSinfo
 
     file=""
     while read -r line
     do
         file="$file""$line\n"
-    done <<< "$(cat $tEnabler1)"
+    done <<< "$(cat $tEnabler10131)"
     file="$(echo -e -n $file)"
     shaUnPatched=$(echo "$file" | sed -n 1p)
     shaPatched=$(echo "$file" | sed -n 2p)
     tMacOSVersion=$(echo "$file" | sed -n 3p)
     tMacOSBuild=$(echo "$file" | sed -n 4p)
 
-    tEnablerUpgrade=0
-    tEnablerUpdate=0
-    tEnablerPatchedMatch=0
-    tEnablerUnPatchedMatch=0
-    tEnablerPatchUnPatch=0
+    tEnabler1013Upgrade=0
+    tEnabler1013Update=0
+    tEnabler1013PatchedMatch=0
+    tEnabler1013UnPatchedMatch=0
+    tEnabler1013PatchUnPatch=0
     if [ "$os" != "$tMacOSVersion" ]
     then
-        tEnablerUpgrade=1
+        tEnabler1013Upgrade=1
     fi
     if [ "$build" != "$tMacOSBuild" ]
     then
-        tEnablerUpdate=1
+        tEnabler1013Update=1
     fi
     if [ "$shaPatched" == "$checkSumWrangler" ]
     then
-        tEnablerPatchedMatch=1
+        tEnabler1013PatchedMatch=1
     fi
     if [ "$shaUnPatched" == "$checkSumWrangler" ]
     then
-        tEnablerUnPatchedMatch=1
+        tEnabler1013UnPatchedMatch=1
     fi
     if [ "$shaPatched" == "$shaUnPatched" ]
     then
-        tEnablerPatchUnPatch=1
+        tEnabler1013PatchUnPatch=1
     fi
-    tEnablerInstallStatus="$(expr $tEnablerPatchUnPatch + $tEnablerUnPatchedMatch \* 2 + $tEnablerPatchedMatch \* 4 + $tEnablerUpdate \* 8 + $tEnablerUpgrade \* 16)"
+    tEnabler1013InstallStatus="$(expr $tEnabler1013PatchUnPatch + $tEnabler1013UnPatchedMatch \* 2 + $tEnabler1013PatchedMatch \* 4 + $tEnabler1013Update \* 8 + $tEnabler1013Upgrade \* 16)"
 
-    if [ "$tEnablerPatchedMatch" == 1 ] && [ "$tEnablerPatchUnPatch" == 0 ]
+    if [ "$tEnabler1013PatchedMatch" == 1 ] && [ "$tEnabler1013PatchUnPatch" == 0 ]
     then
-        tEnablerInstalled=true
+        tEnabler1013Installed=true
     fi
 }
 
 ##  check if thounderbolt unlock patch is in use
-function checkTEnablerInstall {
-    tEnablerInstalled=false
+function checkTEnabler1013Install {
+    tEnabler1013Installed=false
     if [ -d "$tEnabler1" ]
     then
-        refineTEnablerInstall
+        refineTEnabler1013Install
     fi
 }
 
@@ -836,7 +864,7 @@ function fetchInstalledSoftware {
     checkEnabler1012gInstall
     checkEnabler1012rInstall
     checkEnabler1013Install
-    checkTEnablerInstall
+    checkTEnabler1013Install
 }
 
 
@@ -858,11 +886,32 @@ function fetchInstalledPrograms {
 
 
 
-#   Subroutine C: Uninstallers ##############################################################################################################
-#   Subroutine C1: define CUDA uninstaller
+#   Subroutine C: Custom uninstall scripts ##############################################################################################################
+function genericUninstaller {
+    fileListUninstall="$(echo -e $1)"
+    genericUninstalled=false
+    while read -r genericFile
+    do
+    if [ -e "$genericFile" ]
+    then
+        genericUninstalled=true
+        sudo rm -r -f -v "$genericFile"
+    fi
+    done <<< "$fileListUninstall"
+    if "$genericUninstalled"
+    then
+        return 0
+    else
+        return 1
+    fi
+}
+
+
+#   Subroutine D: Uninstallers ##############################################################################################################
+#   Subroutine D1: define CUDA uninstaller
 ##  uninstall CUDA Driver
 function uninstallCudaDriver {
-    bash <(curl -s "$cudaDriverUnInstallScriptOnline")
+    genericUninstaller "/usr/local/bin/.cuda_driver_uninstall_manifest_do_not_delete.txt\n/Library/Frameworks/CUDA.framework\n/Library/PreferencePanes/CUDA Preferences.prefPane\n/Library/LaunchDaemons/com.nvidia.cuda.launcher.plist\n/Library/LaunchDaemons/com.nvidia.cudad.plist\n/usr/local/bin/uninstall_cuda_drv.pl\n/usr/local/cuda/lib/libcuda.dylib\n/Library/Extensions/CUDA.kext\n/Library/LaunchAgents/com.nvidia.CUDASoftwareUpdate.plist\n/usr/local/cuda"
     if [ "$?" == 0 ]
     then
         doneSomething=true
@@ -873,7 +922,7 @@ function uninstallCudaDriver {
 
 ##  uninstall CUDA residue
 function uninstallCudaResidue {
-    bash <(curl -s "$cudaResidueUnInstallScriptOnline")
+    genericUninstaller "/Developer/NVIDIA/\n/usr/local/cuda"
     if [ "$?" == 0 ]
     then
         doneSomething=true
@@ -953,7 +1002,7 @@ function uninstallCuda {
     fi
 }
 
-#   Subroutine C2: define NVIDIA driver uninstaller
+#   Subroutine D2: define NVIDIA driver uninstaller
 function uninstallNvidiaDriver {
     checkNvidiaDriverInstall
     if "$nvidiaDriversInstalled"
@@ -966,13 +1015,11 @@ function uninstallNvidiaDriver {
     fi
 }
 
-#   Subroutine C3: define enabler1012g uninstaller
+#   Subroutine D3: define enabler1012g uninstaller
 function uninstallEnabler1012g {
     checkEnabler1012gInstall
     if "$enabler1012gInstalled"
     then
-        mktmpdir
-        curl -o "$dirName"/automate-eGPU.sh "$automateeGPUScriptPath"
         cd "$dirName"/
         chmod +x automate-eGPU.sh
         sudo ./automate-eGPU.sh -uninstall
@@ -984,12 +1031,12 @@ function uninstallEnabler1012g {
     fi
 }
 
-#   Subroutine C4: define enabler1012r uninstaller
+#   Subroutine D4: define enabler1012r uninstaller
 function uninstallEnabler1012r {
     checkEnabler1012rInstall
     if "$enabler1012rInstalled"
     then
-        bash <(curl -s "$enabler1012rUnInstallScriptOnline")
+        genericUninstaller "/Applications/Uninstall Rastafabi's eGPU Enabler.app\n/Library/Extensions/eGPU.kext\n/Library/Application Support/fpsoft\n/Library/LaunchAgents/com.fpsoft.eGPU_iMac_5k_Fix.plist\n/Library/LaunchAgents/com.fpsoft.eGPU_delay_Thunderbolt.plist"
         if [ "$?" == 0 ]
         then
             scheduleReboot=true
@@ -1000,12 +1047,12 @@ function uninstallEnabler1012r {
     fi
 }
 
-#   Subroutine C5: define enabler1013 uninstaller
+#   Subroutine D5: define enabler1013 uninstaller
 function uninstallEnabler1013 {
     checkEnabler1013Install
     if "$enabler1013Installed"
     then
-        sudo rm -rf "$enabler1013"
+        sudo rm -r -f -v "$enabler1013"
         listOfChanges="$listOfChanges""\n""-eGPU support (High Sierra) has been uninstalled"
         scheduleReboot=true
         doneSomething=true
@@ -1013,7 +1060,11 @@ function uninstallEnabler1013 {
     fi
 }
 
+#   Subroutine D6: define unlock thunderbolt uninstaller
+function uninstallTEnabler1013 {
+    cd "$dirName"
 
+}
 
 
 

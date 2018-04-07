@@ -10,22 +10,6 @@
 
 #   beginning of script
 
-list="/Applications/Uninstall Rastafabi's eGPU Enabler.app\n/Library/Extensions/eGPU.kext\n/Library/Application Support/fpsoft\n/Library/LaunchAgents/com.fpsoft.eGPU_iMac_5k_Fix.plist\n/Library/LaunchAgents/com.fpsoft.eGPU_delay_Thunderbolt.plist"
-list="$(echo -e $list)"
-uninstalled=false
-while read -r file
-do
-    if [ -e "$file" ]
-    then
-        uninstalled=true
-        sudo rm -r -f -v "$file"
-    fi
-done <<< "$list"
-if "$uninstalled"
-then
-    exit 0
-else
-    exit 1
-fi
+echo "This is a test"
 
 #   end of script
