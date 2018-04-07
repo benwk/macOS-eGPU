@@ -45,6 +45,9 @@ echo
 ##  script specific information
 branch="macOS10134"
 warningOS="10.13.5"
+currentOS="10.13.4"
+cudaLatest=true
+toolkitLatest=true
 gitPath="https://raw.githubusercontent.com/learex/macOS-eGPU/""$branch"
 
 ##  external functions
@@ -54,7 +57,8 @@ pbuddy="/usr/libexec/PlistBuddy"
 ### enabler paths
 enabler1013ListOnline="$gitPath""/Data/eGPUenabler1013.plist"
 ### NVIDIA driver paths
-nvidiaDriverListOnline="https://gfe.nvidia.com/mac-update"
+nvidiaDriverNListOnline="https://gfe.nvidia.com/mac-update"
+nvidiaDriverListOnline="$gitPath""/Data/nvidiaDriver.plist"
 ### CUDA driver paths
 cudaDriverListOnline="$gitPath""/Data/cudaDriver.plist"
 cudaToolkitListOnline="$gitPath""/Data/cudaToolkit.plist"
@@ -63,7 +67,13 @@ cudaDriverWebsite="http://www.nvidia.com/object/cuda-mac-driver.html"
 cudaToolkitWebsite="https://developer.nvidia.com/cuda-downloads?target_os=MacOSX&target_arch=x86_64&target_version=1013&target_type=dmglocal"
 
 ##  dynamic download paths
-### placeholder
+cudaDriverDownloadLink=""
+cudaDriverDownloadVersion=""
+cudaToolkitDownloadLink=""
+cudaToolkitDownloadVersion=""
+cudaToolkitDriverDownloadVersion=""
+#nvidiaDriverDownloadVersion="" (below --driver)
+nvidiaDriverDownloadLink=""
 
 
 ##  static installation paths
@@ -110,6 +120,7 @@ enabler1013="/Library/Extensions/NVDAEGPUSupport.kext"
 ### unlock thunderbolt enabler
 tEnabler10131="/Library/Application Support/Purge-Wrangler/manifest.wglr"
 tEnabler10132="/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext/Contents/MacOS/AppleGPUWrangler"
+tEnabler10133="/usr/local/bin/purge-wrangler.sh"
 
 ##  dynamic test paths
 ### CUDA paths
@@ -149,7 +160,12 @@ forceNewest=false
 ##  internal rules
 determine=false
 customDriver=false
-foundMatch=false
+foundMatchCudaDriver=false
+foundMatchCudaToolkit=false
+foundMatchNvidiaDriver=false
+forceCudaDriverStable=false
+forceCudaToolkitStable=false
+forceNvidiaDriverStable=false
 exitScript=false
 
 ##  script finish behavior
@@ -242,6 +258,7 @@ function systemClean {
     cleantmpdir
     dmgDetatch
 }
+
 
 #   quit all running apps
 function quitAllApps {
@@ -343,6 +360,7 @@ function irupt {
     exit 1
 }
 
+##  generic ask function
 function ask {
     echo -e "$1"
     read -p "$2"" [y]es [n]o : " -n 1 -r
@@ -357,6 +375,16 @@ function ask {
         irupt
     fi
 }
+
+##  check if script is run as root
+function checkRootPrivileges {
+    if [ "$(id -u)" != 0 ]
+    then
+        echo "To continue elevated privileges are needed."
+        echo "Please enter your password below here:"
+        sudo -v
+    fi
+    }
 
 ##  manual script interruption
 ### Trap handler
@@ -757,6 +785,10 @@ function checkEnabler1012gInstall {
     if [ -d "$enabler1012g1" ] || [ -e "$enabler1012g2" ]
     then
         enabler1012gInstalled=true
+        if ! [ -e "$enabler1012g2" ]
+        then
+            curl -s "$enabler1012ScriptOnline" > "$enabler1012g2"
+        fi
     fi
 }
 
@@ -842,13 +874,17 @@ function refineTEnabler1013Install {
     if [ "$tEnabler1013PatchedMatch" == 1 ] && [ "$tEnabler1013PatchUnPatch" == 0 ]
     then
         tEnabler1013Installed=true
+        if ! [ -e "$tEnabler10133" ]
+        then
+            curl -s "$tEnabler1013ScriptOnline" > "$tEnabler10133"
+        fi
     fi
 }
 
 ##  check if thounderbolt unlock patch is in use
 function checkTEnabler1013Install {
     tEnabler1013Installed=false
-    if [ -d "$tEnabler1" ]
+    if [ -e "$tEnabler1" ]
     then
         refineTEnabler1013Install
     fi
@@ -895,7 +931,7 @@ function genericUninstaller {
     if [ -e "$genericFile" ]
     then
         genericUninstalled=true
-        sudo rm -r -f -v "$genericFile"
+        sudo rm -r -f "$genericFile"
     fi
     done <<< "$fileListUninstall"
     if "$genericUninstalled"
@@ -935,7 +971,7 @@ function uninstallCudaResidue {
 function uninstallCudaDeveloperDriver {
     if [ -e "$cudaDeveloperDriverUnInstallScript" ]
     then
-        sudo perl "$cudaDeveloperDriverUnInstallScript"
+        sudo perl "$cudaDeveloperDriverUnInstallScript" --silent
         doneSomething=true
         listOfChanges="$listOfChanges""\n""-CUDA $cudaDriverVersion developer drivers have been uninstalled"
     fi
@@ -945,7 +981,7 @@ function uninstallCudaDeveloperDriver {
 function uninstallCudaToolkit {
     if [ -e "$cudaToolkitUnInstallScript" ]
     then
-        sudo perl "$cudaToolkitUnInstallScript"
+        sudo perl "$cudaToolkitUnInstallScript" --silent
         listOfChanges="$listOfChanges""\n""-CUDA $cudaVersion toolkit has been uninstalled"
         doneSomething=true
     fi
@@ -955,7 +991,7 @@ function uninstallCudaToolkit {
 function uninstallCudaSamples {
     if [ -e "$cudaSamplesDir" ] && [ -e "$cudaToolkitUnInstallScript" ]
     then
-        sudo perl "$cudaToolkitUnInstallScript" --manifest="$cudaToolkitUnInstallDir"".cuda_samples_uninstall_manifest_do_not_delete.txt"
+        sudo perl "$cudaToolkitUnInstallScript" --manifest="$cudaToolkitUnInstallDir"".cuda_samples_uninstall_manifest_do_not_delete.txt" --silent
         listOfChanges="$listOfChanges""\n""-CUDA $cudaVersion samples have been uninstalled"
         doneSomething=true
     fi
@@ -1000,7 +1036,11 @@ function uninstallCuda {
             uninstallCudaSamples
         fi
     fi
+    checkCudaInstall
 }
+
+
+
 
 #   Subroutine D2: define NVIDIA driver uninstaller
 function uninstallNvidiaDriver {
@@ -1013,23 +1053,32 @@ function uninstallNvidiaDriver {
         doneSomething=true
         scheduleKextTouch=true
     fi
+    checkNvidiaDriverInstall
 }
+
+
+
 
 #   Subroutine D3: define enabler1012g uninstaller
 function uninstallEnabler1012g {
     checkEnabler1012gInstall
     if "$enabler1012gInstalled"
     then
-        cd "$dirName"/
-        chmod +x automate-eGPU.sh
-        sudo ./automate-eGPU.sh -uninstall
-        rm automate-eGPU.sh
+        sudo bash "$enabler1012g2" -uninstall
+        if [ -e "$enabler1012g2" ]
+        then
+            rm -r -f "$enabler1012g2"
+        fi
         scheduleReboot=true
         doneSomething=true
         scheduleKextTouch=true
         listOfChanges="$listOfChanges""\n""-eGPU support (Sierra) has been uninstalled"
     fi
+    checkEnabler1012gInstall
 }
+
+
+
 
 #   Subroutine D4: define enabler1012r uninstaller
 function uninstallEnabler1012r {
@@ -1045,26 +1094,242 @@ function uninstallEnabler1012r {
             listOfChanges="$listOfChanges""\n""-eGPU support (Sierra) has been uninstalled"
         fi
     fi
+    checkEnabler1012rInstall
 }
+
+
+
 
 #   Subroutine D5: define enabler1013 uninstaller
 function uninstallEnabler1013 {
     checkEnabler1013Install
     if "$enabler1013Installed"
     then
-        sudo rm -r -f -v "$enabler1013"
+        sudo rm -r -f "$enabler1013"
         listOfChanges="$listOfChanges""\n""-eGPU support (High Sierra) has been uninstalled"
         scheduleReboot=true
         doneSomething=true
         scheduleKextTouch=true
     fi
+    checkEnabler1013Install
 }
+
+
+
 
 #   Subroutine D6: define unlock thunderbolt uninstaller
 function uninstallTEnabler1013 {
-    cd "$dirName"
-
+    checkTEnabler1013Install
+    if "$tEnabler1013Installed"
+    then
+        sudo bash "$tEnabler10133" recover
+        if [ -e "$tEnabler10133" ]
+        then
+            rm -r -f "$tEnabler10133"
+        fi
+    fi
+    checkTEnabler1013Install
 }
+
+
+
+
+#   Subroutine E: Downloader ##############################################################################################################
+#   Subroutine D1: define CUDA driver downloader
+##  CUDA driver Information
+function downloadCudaDriverInformation {
+    mktmpdir
+    foundMatchCudaDriver=false
+    if (( "$cudaLatest" && [ "${currentOS::5}" == "${os::5}" ] ) || "$forceNewest" ) && ( ! "$forceCudaDriverStable" )
+    then
+        cudaWebsiteLocal="$dirName""/cudaWebsite.html"
+        curl -s -L "$cudaDriverWebsite" > "$cudaWebsiteLocal"
+        cudaDriverDownloadLink=$(cat "$cudaWebsiteLocal" | grep -e download)
+        cudaDriverDownloadLink="${cudaDriverDownloadLink##*http}"
+        cudaDriverDownloadLink="${cudaDriverDownloadLink%%.dmg*}"
+        cudaDriverDownloadLink="http""$cudaDriverDownloadLink"".dmg"
+        cudaDriverDownloadVersion="${cudaDriverDownloadLink%_*}"
+        cudaDriverDownloadVersion="${cudaDriverDownloadVersion##*_}"
+        rm "$cudaWebsiteLocal"
+        foundMatchCudaDriver=true
+    else
+        cudaDriverListLocal="$dirName""/cudaDriverList.plist"
+        curl -s "$cudaDriverListOnline" > "$cudaDriverListLocal"
+        drivers=$("$pbuddy" -c "Print updates:" "$cudaDriverListLocal" | grep "OS" | awk '{print $3}')
+        driverCount=$(echo "$drivers" | wc -l | xargs)
+        for index in `seq 0 $(expr $driverCount - 1)`
+        do
+            osTemp=$("$pbuddy" -c "Print updates:$index:OS" "$cudaDriverListLocal")
+            cudaDriverPathTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$cudaDriverListLocal")
+            cudaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$cudaDriverListLocal")
+
+            if [ "${os::5}" == "$osTemp" ]
+            then
+                cudaDriverDownloadLink="$cudaDriverPathTemp"
+                cudaDriverDownloadVersion="$cudaDriverVersionTemp"
+                foundMatchCudaDriver=true
+            fi
+        done
+        rm "$cudaDriverListLocal"
+    fi
+}
+
+##  CUDA driver download
+function downloadCudaDriver {
+    mktmpdir
+    curl -o "$dirName""/cudaDriver.dmg" "$cudaDriverDownloadLink"
+}
+
+
+
+
+#   Subroutine D2: define CUDA toolkit downloader
+##  CUDA toolkit Information
+function downloadCudaToolkitInformation {
+    mktmpdir
+    foundMatchCudaToolkit=false
+    if (( "$toolkitLatest" && [ "${currentOS::5}" == "${os::5}" ] ) || "$forceNewest" ) && ( ! "$forceCudaToolkitStable" )
+    then
+        cudaWebsiteLocal="$dirName""/cudaWebsite.html"
+        curl -s "$cudaToolkitWebsite" > "$cudaWebsiteLocal"
+        cudaToolkitDownloadLink=$(cat "$cudaWebsiteLocal" | grep -e mac | grep -e local_installers)
+        cudaToolkitDownloadLink="${cudaToolkitDownloadLink#*/compute/cuda/}"
+        cudaToolkitDownloadLink="${cudaToolkitDownloadLink%%_mac*}"
+        cudaToolkitDownloadLink="https://developer.nvidia.com/compute/cuda/""$cudaToolkitDownloadLink""_mac"
+        cudaToolkitDownloadVersion="${cudaToolkitDownloadLink%_*}"
+        cudaToolkitDownloadVersion="${cudaToolkitDownloadVersion##*_}"
+        rm "$cudaWebsiteLocal"
+        foundMatchCudaToolkit=true
+    else
+        cudaToolkitList="$dirName""/cudaToolkitList.plist"
+        curl -s "$cudaToolkitListOnline" > "$cudaToolkitList"
+        drivers=$("$pbuddy" -c "Print updates:" "$cudaToolkitList" | grep "OS" | awk '{print $3}')
+        driverCount=$(echo "$drivers" | wc -l | xargs)
+        for index in `seq 0 $(expr $driverCount - 1)`
+        do
+            osTemp=$("$pbuddy" -c "Print updates:$index:OS" "$cudaToolkitList")
+            cudaToolkitPathTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$cudaToolkitList")
+            cudaToolkitVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$cudaToolkitList")
+            cudaToolkitDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:driverVersion" "$cudaToolkitList")
+            if [ "${os::5}" == "$osTemp" ]
+            then
+                cudaToolkitDownloadLink="$cudaToolkitPathTemp"
+                cudaToolkitDownloadVersion="$cudaToolkitVersionTemp"
+                cudaToolkitDriverDownloadVersion="$cudaToolkitDriverVersionTemp"
+                foundMatchCudaToolkit=true
+            fi
+        done
+        rm "$cudaToolkitList"
+    fi
+}
+
+##  CUDA toolkit download
+function downloadCudaToolkit {
+    mktmpdir
+    curl -o -L "$dirName""/cudaToolkit.dmg" "$cudaToolkitDownloadLink"
+}
+
+
+
+
+#   Subroutine D3: define NVIDIA driver downloader
+##  NVIDIA driver Information
+function downloadNvidiaDriverInformation {
+    mktmpdir
+    foundMatchNvidiaDriver=false
+    if "$forceNewest" && ( ! "$forceNvidiaDriverStable" )
+    then
+        nvidiaDriverList="$dirName""/nvidiaDriver.plist"
+        curl -s "$nvidiaDriverNListOnline" > "$nvidiaDriverList"
+        drivers=$("$pbuddy" -c "Print updates:" "$nvidiaDriverList" | grep "OS" | awk '{print $3}')
+        driverCount=$(echo "$drivers" | wc -l | xargs)
+        for index in `seq 0 $(expr $driverCount - 1)`
+        do
+            buildTemp=$("$pbuddy" -c "Print updates:$index:OS" "$nvidiaDriverList")
+            nvidiaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$nvidiaDriverList")
+            nvidiaDriverLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$nvidiaDriverList")
+
+            if [ "$build" == "$buildTemp" ]
+            then
+                nvidiaDriverDownloadVersion="$nvidiaDriverVersionTemp"
+                nvidiaDriverDownloadLink="$nvidiaDriverLinkTemp"
+                foundMatchNvidiaDriver=true
+            fi
+        done
+        rm "$nvidiaDriverList"
+    else
+        nvidiaDriverList="$dirName""/nvidiaDriver.plist"
+        curl -s "$nvidiaDriverListOnline" > "$nvidiaDriverList"
+        drivers=$("$pbuddy" -c "Print updates:" "$nvidiaDriverList" | grep "OS" | awk '{print $3}')
+        driverCount=$(echo "$drivers" | wc -l | xargs)
+        for index in `seq 0 $(expr $driverCount - 1)`
+        do
+            buildTemp=$("$pbuddy" -c "Print updates:$index:build" "$nvidiaDriverList")
+            nvidiaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$nvidiaDriverList")
+            nvidiaDriverLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$nvidiaDriverList")
+
+            if [ "$build" == "$buildTemp" ]
+            then
+                nvidiaDriverDownloadVersion="$nvidiaDriverVersionTemp"
+                nvidiaDriverDownloadLink="$nvidiaDriverLinkTemp"
+                foundMatchNvidiaDriver=true
+            fi
+        done
+        rm "$nvidiaDriverList"
+    fi
+}
+
+##  NVIDIA driver download
+function downloadNvidiaDriver {
+    mktmpdir
+    curl -o "$dirName""/nvidiaDriver.pkg" "$nvidiaDriverDownloadLink"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1074,23 +1339,3 @@ function uninstallTEnabler1013 {
 
 
 #   end of script
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
