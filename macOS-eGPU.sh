@@ -67,13 +67,20 @@ cudaDriverWebsite="http://www.nvidia.com/object/cuda-mac-driver.html"
 cudaToolkitWebsite="https://developer.nvidia.com/cuda-downloads?target_os=MacOSX&target_arch=x86_64&target_version=1013&target_type=dmglocal"
 
 ##  dynamic download paths
+### CUDA driver paths
 cudaDriverDownloadLink=""
 cudaDriverDownloadVersion=""
 cudaToolkitDownloadLink=""
 cudaToolkitDownloadVersion=""
 cudaToolkitDriverDownloadVersion=""
+### NVIDIA driver paths
 #nvidiaDriverDownloadVersion="" (below --driver)
 nvidiaDriverDownloadLink=""
+nvidiaDriverDownloadChecksum=""
+### enabler paths
+enabler1013DownloadLink=""
+enabler1013DownloadChecksum=""
+
 
 
 ##  static installation paths
@@ -88,7 +95,7 @@ cudaToolkitVolPath="/Volumes/CUDAMacOSXInstaller/"
 cudaToolkitPKGName="CUDAMacOSXInstaller.app/Contents/MacOS/CUDAMacOSXInstaller"
 
 ##  dynamic installation paths
-### placeholder
+enabler1013DownloadPKGName=""
 
 
 ##  static uninstallation paths
@@ -163,9 +170,14 @@ customDriver=false
 foundMatchCudaDriver=false
 foundMatchCudaToolkit=false
 foundMatchNvidiaDriver=false
+foundMatchEnabler1013=false
 forceCudaDriverStable=false
 forceCudaToolkitStable=false
 forceNvidiaDriverStable=false
+omitEnabler=false
+omitTEnabler=false
+omitDriver=false
+omitCuda=false
 exitScript=false
 
 ##  script finish behavior
@@ -245,11 +257,11 @@ function cleantmpdir {
 function dmgDetatch {
     if [ -d "$cudaDriverVolPath" ]
     then
-        hdiutil detach "$cudaDriverVolPath"
+        hdiutil detach "$cudaDriverVolPath" -quiet
     fi
     if [ -d "$cudaToolkitVolPath" ]
     then
-        hdiutil detach "$cudaToolkitVolPath"
+        hdiutil detach "$cudaToolkitVolPath" -quiet
     fi
 }
 
@@ -263,13 +275,13 @@ function systemClean {
 #   quit all running apps
 function quitAllApps {
     echo "Closing all apps..."
-    appsToQuit=$(osascript -e 'tell application "System Events" to set quitapps to name of every application process whose visible is true and name is not "Finder" and name is not "Terminal"' -e 'return quitapps')
-    appsToQuit="${appsToQuit//, /\n}"
-    appsToQuit="$(echo -e $appsToQuit)"
-    while read -r appNameToQuit
+    appsToQuitTemp=$(osascript -e 'tell application "System Events" to set quitapps to name of every application process whose visible is true and name is not "Finder" and name is not "Terminal"' -e 'return quitapps')
+    appsToQuitTemp="${appsToQuitTemp//, /\n}"
+    appsToQuitTemp="$(echo -e $appsToQuitTemp)"
+    while read -r appNameToQuitTemp
     do
-        killall "$appNameToQuit"
-    done <<< "$appsToQuit"
+        killall "$appNameToQuitTemp"
+    done <<< "$appsToQuitTemp"
 }
 
 #   finish handling
@@ -417,26 +429,24 @@ function trapLock {
     trap '' INT
 }
 
-####activate abort
-function trapUnlock {
-    trap - INT
-}
-
 #   startup warnings
 function scriptWarningBegin {
     trapWithoutWarning
     echo "All apps will be force closed. Quit (press ^C) now to abort."
+    sleep 2
     echo "Do not use without backup."
+    sleep 2
     echo "It is strongly recommended to use the uninstall function before every macOS update/upgrade."
-    echo "The script will continue in 10 seconds. Quit (press ^C) now if you don't have a backup."
-    trap '{ echo; echo "You aborted the script. Nothing has been changed."; exit 1; }' INT
-    sleep 10
+    sleep 2
+    echo "Quit (press ^C) now if you don't have a backup."
+    sleep 2
     trapLock
     echo
     echo
     echo "macOS-eGPU.sh has been started..."
     echo "Do not force quit the script!"
     echo "It might render your Mac unrepairable."
+    sleep 2
     echo
     echo
 }
@@ -478,7 +488,7 @@ do
         update=true
         ;;
     "--checkSystem" | "-C")
-        if "$uninstall" || "$update" || "$install" || "$reinstall" || [ "$forceNewest" != "stable" ] || [ "$driver" || "$reinstall" || "$cuda" || "$minimal" || "$enabler"
+        if "$uninstall" || "$update" || "$install" || "$reinstall" || "$forceNewest" || "$driver" || "$reinstall" || "$cuda" || "$minimal" || "$enabler"
         then
             echo "ERROR: Conflicting arguments with --check | -C"
             irupt
@@ -591,10 +601,10 @@ done
 # ask license question
 ask "Further execution requires explicit acceptance of the licensing terms.\nTo read the full license document goto:\nhttps://github.com/learex/macOS-eGPU/blob/master/License.txt" "Do you agree with the license terms?"
 
-if ! "$noReboot"
+if ( ! "$noReboot" ) && ( ! "$check" )
 then
     echo "The system will reboot after successfull completion."
-    waiter "priorWaitTime"
+    waiter "$priorWaitTime"
 fi
 
 #   set standards
@@ -621,12 +631,12 @@ function fetchOSinfo {
 ##  0: completely disabled, 127: fully enabled, 128: error, 31: --without KEXT
 ##  Binary of: Apple Internal | Kext Signing | Filesystem Protections | Debugging Restrictions | DTrace Restrictions | NVRAM Protections | BaseSystem Verification
 function fetchSIPstat {
-    SIP="$(csrutil status)"
-    if [ "${SIP: -2}" == "d." ]
+    SIPTemp="$(csrutil status)"
+    if [ "${SIPTemp: -2}" == "d." ]
     then
-        SIP="${SIP::37}"
-        SIP="${SIP: -1}"
-        case "$SIP"
+        SIPTemp="${SIPTemp::37}"
+        SIPTemp="${SIPTemp: -1}"
+        case "$SIPTemp"
         in
         "e")
             statSIP=127
@@ -639,29 +649,29 @@ function fetchSIPstat {
             ;;
         esac
     else
-        SIP1="${SIP::102}"
-        SIP1="${SIP1: -1}"
-        SIP2="${SIP::126}"
-        SIP2="${SIP2: -1}"
-        SIP3="${SIP::160}"
-        SIP3="${SIP3: -1}"
-        SIP4="${SIP::193}"
-        SIP4="${SIP4: -1}"
-        SIP5="${SIP::223}"
-        SIP5="${SIP5: -1}"
-        SIP6="${SIP::251}"
-        SIP6="${SIP6: -1}"
-        SIP7="${SIP::285}"
-        SIP7="${SIP7: -1}"
-        p=1
+        SIP1Temp="${SIPTemp::102}"
+        SIP1Temp="${SIP1Temp: -1}"
+        SIP2Temp="${SIPTemp::126}"
+        SIP2Temp="${SIP2Temp: -1}"
+        SIP3Temp="${SIPTemp::160}"
+        SIP3Temp="${SIP3Temp: -1}"
+        SIP4Temp="${SIPTemp::193}"
+        SIP4Temp="${SIP4Temp: -1}"
+        SIP5Temp="${SIPTemp::223}"
+        SIP5Temp="${SIP5Temp: -1}"
+        SIP6Temp="${SIPTemp::251}"
+        SIP6Temp="${SIP6Temp: -1}"
+        SIP7Temp="${SIPTemp::285}"
+        SIP7Temp="${SIP7Temp: -1}"
+        pTemp=1
         statSIP=0
-        for SIPX in "$SIP7" "$SIP6" "$SIP5" "$SIP4" "$SIP3" "$SIP2" "$SIP1"
+        for SIPXTemp in "$SIP7Temp" "$SIP6Temp" "$SIP5Temp" "$SIP4Temp" "$SIP3Temp" "$SIP2Temp" "$SIP1Temp"
         do
-            if [ "$SIPX" == "e" ]
+            if [ "$SIPXTemp" == "e" ]
             then
-                statSIP="$(expr $statSIP + $p)"
+                statSIP="$(expr $statSIP + $pTemp)"
             fi
-            p="$(expr $p \* 2)"
+            pTemp="$(expr $pTemp \* 2)"
         done
     fi
 }
@@ -692,17 +702,16 @@ function readCudaDeveloperVersion {
 
 ##  fetch multiple tookit versions (pretest needed!)
 function readCudaToolkitVersions {
-    cudaDirContent="$(ls $cudaDeveloperDir)"
-    while read -r folder
+    cudaDirContentTemp="$(ls $cudaDeveloperDir)"
+    while read -r folderTemp
     do
-        if [ "${folder%%-*}" == "CUDA" ]
+        if [ "${folderTemp%%-*}" == "CUDA" ]
         then
-            cudaVersionsInstalledList=$(echo -e "$cudaVersionsInstalledList""${folder#CUDA-};")
+            cudaVersionsInstalledList="$cudaVersionsInstalledList""${folderTemp#CUDA-}\n"
         fi
-    done <<< "$cudaDirContent"
-    cudaVersionsInstalledList="${cudaVersionsInstalledList//;/\n}"
+    done <<< "$cudaDirContentTemp"
     cudaVersionsInstalledList="$(echo -e -n $cudaVersionsInstalledList)"
-    cudaVersionsInstalledList="$(echo $cudaVersionsInstalledList | wc -l | xargs)"
+    cudaVersionsNum="$(echo $cudaVersionsInstalledList | wc -l | xargs)"
 }
 
 ##  fetch which parts are installed
@@ -748,7 +757,7 @@ function checkCudaInstall {
     fi
     if [ -e "$cudaDeveloperDriverUnInstallScriptPath" ]
     then
-        cudaDeveloperDriverInstalled=1
+        cudaDeveloperDriverInstalled=true
     fi
     checkCudaDriverInstall
 }
@@ -830,48 +839,48 @@ function checkEnabler1013Install {
 ##  get detailed information about the TEnabler installation
 ##  Binary: upgrade | update | patchedMatch | unPatchedMatch | patched == unPatched
 function refineTEnabler1013Install {
-    checkSumWrangler=$(shasum -a 256 "$tEnabler10132" | awk '{ print $1 }')
+    checkSumWranglerTemp=$(shasum -a 512 "$tEnabler10132" | awk '{ print $1 }')
     fetchOSinfo
 
-    file=""
-    while read -r line
+    fileTemp=""
+    while read -r lineTemp
     do
-        file="$file""$line\n"
+        fileTemp="$fileTemp""$lineTemp\n"
     done <<< "$(cat $tEnabler10131)"
-    file="$(echo -e -n $file)"
-    shaUnPatched=$(echo "$file" | sed -n 1p)
-    shaPatched=$(echo "$file" | sed -n 2p)
-    tMacOSVersion=$(echo "$file" | sed -n 3p)
-    tMacOSBuild=$(echo "$file" | sed -n 4p)
+    fileTemp="$(echo -e -n $fileTemp)"
+    shaUnPatchedTemp=$(echo "$fileTemp" | sed -n 1p)
+    shaPatchedTemp=$(echo "$fileTemp" | sed -n 2p)
+    tMacOSVersionTemp=$(echo "$fileTemp" | sed -n 3p)
+    tMacOSBuildTemp=$(echo "$fileTemp" | sed -n 4p)
 
-    tEnabler1013Upgrade=0
-    tEnabler1013Update=0
-    tEnabler1013PatchedMatch=0
-    tEnabler1013UnPatchedMatch=0
-    tEnabler1013PatchUnPatch=0
-    if [ "$os" != "$tMacOSVersion" ]
+    tEnabler1013UpgradeTemp=0
+    tEnabler1013UpdateTemp=0
+    tEnabler1013PatchedMatchTemp=0
+    tEnabler1013UnPatchedMatchTemp=0
+    tEnabler1013PatchUnPatchTemp=0
+    if [ "$os" != "$tMacOSVersionTemp" ]
     then
         tEnabler1013Upgrade=1
     fi
-    if [ "$build" != "$tMacOSBuild" ]
+    if [ "$build" != "$tMacOSBuildTemp" ]
     then
         tEnabler1013Update=1
     fi
-    if [ "$shaPatched" == "$checkSumWrangler" ]
+    if [ "$shaPatchedTemp" == "$checkSumWranglerTemp" ]
     then
-        tEnabler1013PatchedMatch=1
+        tEnabler1013PatchedMatchTemp=1
     fi
-    if [ "$shaUnPatched" == "$checkSumWrangler" ]
+    if [ "$shaUnPatchedTemp" == "$checkSumWranglerTemp" ]
     then
-        tEnabler1013UnPatchedMatch=1
+        tEnabler1013UnPatchedMatchTemp=1
     fi
-    if [ "$shaPatched" == "$shaUnPatched" ]
+    if [ "$shaPatchedTemp" == "$shaUnPatchedTemp" ]
     then
-        tEnabler1013PatchUnPatch=1
+        tEnabler1013PatchUnPatchTemp=1
     fi
-    tEnabler1013InstallStatus="$(expr $tEnabler1013PatchUnPatch + $tEnabler1013UnPatchedMatch \* 2 + $tEnabler1013PatchedMatch \* 4 + $tEnabler1013Update \* 8 + $tEnabler1013Upgrade \* 16)"
+    tEnabler1013InstallStatus="$(expr $tEnabler1013PatchUnPatchTemp + $tEnabler1013UnPatchedMatchTemp \* 2 + $tEnabler1013PatchedMatchTemp \* 4 + $tEnabler1013UpdateTemp \* 8 + $tEnabler1013UpgradeTemp \* 16)"
 
-    if [ "$tEnabler1013PatchedMatch" == 1 ] && [ "$tEnabler1013PatchUnPatch" == 0 ]
+    if [ "$tEnabler1013PatchedMatchTemp" == 1 ] && [ "$tEnabler1013PatchUnPatchTemp" == 0 ]
     then
         tEnabler1013Installed=true
         if ! [ -e "$tEnabler10133" ]
@@ -908,33 +917,39 @@ function fetchInstalledSoftware {
 
 #   Subroutine B9: fetch all installed programs in /Applications
 function fetchInstalledPrograms {
-    appListPaths="$(find /Applications/ -iname *.app)"
-    appList=""
-    while read -r app
+    appListPathsTemp="$(find /Applications/ -iname *.app)"
+    appListTemp=""
+    while read -r appTemp
     do
-        appTemp="${app##*/}"
-        appList="$appList""${appTemp%.*}"";"
-    done <<< "$appListPaths"
-    appList="${appList//;/\n}"
-    programList="$(echo -e -n $appList)"
+        appTemp="${appTemp##*/}"
+        appListTemp="$appList""${appTemp%.*}""\n"
+    done <<< "$appListPathsTemp"
+    programList="$(echo -e -n $appListTemp)"
 }
 
 
 
 
+#   Subroutines B10: check if NVIDIA dGPU is installed
+function fetchNvidiaDGPU {
+
+}
+
+
+
 #   Subroutine C: Custom uninstall scripts ##############################################################################################################
 function genericUninstaller {
-    fileListUninstall="$(echo -e $1)"
-    genericUninstalled=false
-    while read -r genericFile
+    fileListUninstallTemp="$(echo -e $1)"
+    genericUninstalledTemp=false
+    while read -r genericFileTemp
     do
-    if [ -e "$genericFile" ]
+    if [ -e "$genericFileTemp" ]
     then
-        genericUninstalled=true
-        sudo rm -r -f "$genericFile"
+        genericUninstalledTemp=true
+        sudo rm -r -f "$genericFileTemp"
     fi
-    done <<< "$fileListUninstall"
-    if "$genericUninstalled"
+    done <<< "$fileListUninstallTemp"
+    if "$genericUninstalledTemp"
     then
         return 0
     else
@@ -1000,9 +1015,9 @@ function uninstallCudaSamples {
 ##  uninstall CUDA multiple versions
 function uninstallCudaVersions {
     checkCudaInstall
-    while read -r version
+    while read -r versionTemp
     do
-        cudaVersion="$version"
+        cudaVersion="$versionTemp"
         cudaToolkitUnInstallDir="/Developer/NVIDIA/CUDA-""$cudaVersion""/bin/"
         cudaToolkitUnInstallScriptName="uninstall_cuda_""$cudaVersion"".pl"
         cudaToolkitUnInstallScript="$cudaToolkitUnInstallDir""$cudaToolkitUnInstallScript"
@@ -1105,7 +1120,7 @@ function uninstallEnabler1013 {
     checkEnabler1013Install
     if "$enabler1013Installed"
     then
-        sudo rm -r -f "$enabler1013"
+        sudo rm -rf "$enabler1013"
         listOfChanges="$listOfChanges""\n""-eGPU support (High Sierra) has been uninstalled"
         scheduleReboot=true
         doneSomething=true
@@ -1125,7 +1140,7 @@ function uninstallTEnabler1013 {
         sudo bash "$tEnabler10133" recover
         if [ -e "$tEnabler10133" ]
         then
-            rm -r -f "$tEnabler10133"
+            rm -rf "$tEnabler10133"
         fi
     fi
     checkTEnabler1013Install
@@ -1142,26 +1157,26 @@ function downloadCudaDriverInformation {
     foundMatchCudaDriver=false
     if (( "$cudaLatest" && [ "${currentOS::5}" == "${os::5}" ] ) || "$forceNewest" ) && ( ! "$forceCudaDriverStable" )
     then
-        cudaWebsiteLocal="$dirName""/cudaWebsite.html"
-        curl -s -L "$cudaDriverWebsite" > "$cudaWebsiteLocal"
-        cudaDriverDownloadLink=$(cat "$cudaWebsiteLocal" | grep -e download)
+        cudaWebsiteLocalTemp="$dirName""/cudaWebsite.html"
+        curl -s -L "$cudaDriverWebsite" > "$cudaWebsiteLocalTemp"
+        cudaDriverDownloadLink=$(cat "$cudaWebsiteLocalTemp" | grep -e download)
         cudaDriverDownloadLink="${cudaDriverDownloadLink##*http}"
         cudaDriverDownloadLink="${cudaDriverDownloadLink%%.dmg*}"
         cudaDriverDownloadLink="http""$cudaDriverDownloadLink"".dmg"
         cudaDriverDownloadVersion="${cudaDriverDownloadLink%_*}"
         cudaDriverDownloadVersion="${cudaDriverDownloadVersion##*_}"
-        rm "$cudaWebsiteLocal"
+        rm "$cudaWebsiteLocalTemp"
         foundMatchCudaDriver=true
     else
-        cudaDriverListLocal="$dirName""/cudaDriverList.plist"
-        curl -s "$cudaDriverListOnline" > "$cudaDriverListLocal"
-        drivers=$("$pbuddy" -c "Print updates:" "$cudaDriverListLocal" | grep "OS" | awk '{print $3}')
-        driverCount=$(echo "$drivers" | wc -l | xargs)
-        for index in `seq 0 $(expr $driverCount - 1)`
+        cudaDriverListLocalTemp="$dirName""/cudaDriverList.plist"
+        curl -s "$cudaDriverListOnline" > "$cudaDriverListLocalTemp"
+        driversTemp=$("$pbuddy" -c "Print updates:" "$cudaDriverListLocalTemp" | grep "OS" | awk '{print $3}')
+        driverCountTemp=$(echo "$driversTemp" | wc -l | xargs)
+        for index in `seq 0 $(expr $driverCountTemp - 1)`
         do
-            osTemp=$("$pbuddy" -c "Print updates:$index:OS" "$cudaDriverListLocal")
-            cudaDriverPathTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$cudaDriverListLocal")
-            cudaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$cudaDriverListLocal")
+            osTemp=$("$pbuddy" -c "Print updates:$index:OS" "$cudaDriverListLocalTemp")
+            cudaDriverPathTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$cudaDriverListLocalTemp")
+            cudaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$cudaDriverListLocalTemp")
 
             if [ "${os::5}" == "$osTemp" ]
             then
@@ -1170,14 +1185,42 @@ function downloadCudaDriverInformation {
                 foundMatchCudaDriver=true
             fi
         done
-        rm "$cudaDriverListLocal"
+        rm "$cudaDriverListLocalTemp"
     fi
 }
 
 ##  CUDA driver download
+function downloadCudaDriverDownloadFallback {
+    forceCudaDriverStable=true
+    downloadCudaDriverInformation
+    if "$foundMatchCudaDriver"
+    then
+        mktmpdir
+        curl -o "$dirName""/cudaDriver.dmg" "$cudaDriverDownloadLink"
+        hdiutil attach "$dirName""/cudaDriver.dmg" -quiet -nobrowse
+        if [ "$?" == 1 ]
+        then
+            omitCuda=true
+        fi
+    else
+        omitCuda=true
+    fi
+
+}
 function downloadCudaDriver {
-    mktmpdir
-    curl -o "$dirName""/cudaDriver.dmg" "$cudaDriverDownloadLink"
+    downloadCudaDriverInformation
+    if "$foundMatchCudaDriver"
+    then
+        mktmpdir
+        curl -o "$dirName""/cudaDriver.dmg" "$cudaDriverDownloadLink"
+        hdiutil attach "$dirName""/cudaDriver.dmg" -quiet -nobrowse
+        if [ "$?" == 1 ]
+        then
+            downloadCudaDriverDownloadFallback
+        fi
+    else
+        downloadCudaDriverDownloadFallback
+    fi
 }
 
 
@@ -1190,27 +1233,27 @@ function downloadCudaToolkitInformation {
     foundMatchCudaToolkit=false
     if (( "$toolkitLatest" && [ "${currentOS::5}" == "${os::5}" ] ) || "$forceNewest" ) && ( ! "$forceCudaToolkitStable" )
     then
-        cudaWebsiteLocal="$dirName""/cudaWebsite.html"
-        curl -s "$cudaToolkitWebsite" > "$cudaWebsiteLocal"
-        cudaToolkitDownloadLink=$(cat "$cudaWebsiteLocal" | grep -e mac | grep -e local_installers)
+        cudaWebsiteLocalTemp="$dirName""/cudaWebsite.html"
+        curl -s "$cudaToolkitWebsite" > "$cudaWebsiteLocalTemp"
+        cudaToolkitDownloadLink=$(cat "$cudaWebsiteLocalTemp" | grep -e mac | grep -e local_installers)
         cudaToolkitDownloadLink="${cudaToolkitDownloadLink#*/compute/cuda/}"
         cudaToolkitDownloadLink="${cudaToolkitDownloadLink%%_mac*}"
         cudaToolkitDownloadLink="https://developer.nvidia.com/compute/cuda/""$cudaToolkitDownloadLink""_mac"
         cudaToolkitDownloadVersion="${cudaToolkitDownloadLink%_*}"
         cudaToolkitDownloadVersion="${cudaToolkitDownloadVersion##*_}"
-        rm "$cudaWebsiteLocal"
+        rm "$cudaWebsiteLocalTemp"
         foundMatchCudaToolkit=true
     else
-        cudaToolkitList="$dirName""/cudaToolkitList.plist"
-        curl -s "$cudaToolkitListOnline" > "$cudaToolkitList"
-        drivers=$("$pbuddy" -c "Print updates:" "$cudaToolkitList" | grep "OS" | awk '{print $3}')
-        driverCount=$(echo "$drivers" | wc -l | xargs)
-        for index in `seq 0 $(expr $driverCount - 1)`
+        cudaToolkitListTemp="$dirName""/cudaToolkitList.plist"
+        curl -s "$cudaToolkitListOnline" > "$cudaToolkitListTemp"
+        driversTemp=$("$pbuddy" -c "Print updates:" "$cudaToolkitListTemp" | grep "OS" | awk '{print $3}')
+        driverCountTemp=$(echo "$driversTemp" | wc -l | xargs)
+        for index in `seq 0 $(expr $driverCountTemp - 1)`
         do
-            osTemp=$("$pbuddy" -c "Print updates:$index:OS" "$cudaToolkitList")
-            cudaToolkitPathTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$cudaToolkitList")
-            cudaToolkitVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$cudaToolkitList")
-            cudaToolkitDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:driverVersion" "$cudaToolkitList")
+            osTemp=$("$pbuddy" -c "Print updates:$index:OS" "$cudaToolkitListTemp")
+            cudaToolkitPathTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$cudaToolkitListTemp")
+            cudaToolkitVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$cudaToolkitListTemp")
+            cudaToolkitDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:driverVersion" "$cudaToolkitListTemp")
             if [ "${os::5}" == "$osTemp" ]
             then
                 cudaToolkitDownloadLink="$cudaToolkitPathTemp"
@@ -1219,14 +1262,41 @@ function downloadCudaToolkitInformation {
                 foundMatchCudaToolkit=true
             fi
         done
-        rm "$cudaToolkitList"
+        rm "$cudaToolkitListTemp"
     fi
 }
 
 ##  CUDA toolkit download
+function downloadCudaToolkitDownloadFallback {
+    forceCudaToolkitStable=true
+    downloadCudaToolkitInformation
+    if "$foundMatchCudaToolkit"
+    then
+        mktmpdir
+        curl -o -L "$dirName""/cudaToolkit.dmg" "$cudaToolkitDownloadLink"
+        hdiutil attach "$dirName""/cudaToolkit.dmg" -quiet -nobrowse
+        if [ "$?" == 1 ]
+        then
+            omitCuda=true
+        fi
+    else
+        omitCuda=true
+    fi
+}
 function downloadCudaToolkit {
-    mktmpdir
-    curl -o -L "$dirName""/cudaToolkit.dmg" "$cudaToolkitDownloadLink"
+    downloadCudaToolkitInformation
+    if "$foundMatchCudaToolkit"
+    then
+        mktmpdir
+        curl -o -L "$dirName""/cudaToolkit.dmg" "$cudaToolkitDownloadLink"
+        hdiutil attach "$dirName""/cudaToolkit.dmg" -quiet -nobrowse
+        if [ "$?" == 1 ]
+        then
+            downloadCudaToolkitDownloadFallback
+        fi
+    else
+        downloadCudaToolkitDownloadFallback
+    fi
 }
 
 
@@ -1239,61 +1309,151 @@ function downloadNvidiaDriverInformation {
     foundMatchNvidiaDriver=false
     if "$forceNewest" && ( ! "$forceNvidiaDriverStable" )
     then
-        nvidiaDriverList="$dirName""/nvidiaDriver.plist"
-        curl -s "$nvidiaDriverNListOnline" > "$nvidiaDriverList"
-        drivers=$("$pbuddy" -c "Print updates:" "$nvidiaDriverList" | grep "OS" | awk '{print $3}')
-        driverCount=$(echo "$drivers" | wc -l | xargs)
-        for index in `seq 0 $(expr $driverCount - 1)`
+        nvidiaDriverListTemp="$dirName""/nvidiaDriver.plist"
+        curl -s "$nvidiaDriverNListOnline" > "$nvidiaDriverListTemp"
+        driversTemp=$("$pbuddy" -c "Print updates:" "$nvidiaDriverListTemp" | grep "OS" | awk '{print $3}')
+        driverCountTemp=$(echo "$driversTemp" | wc -l | xargs)
+        for index in `seq 0 $(expr $driverCountTemp - 1)`
         do
-            buildTemp=$("$pbuddy" -c "Print updates:$index:OS" "$nvidiaDriverList")
-            nvidiaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$nvidiaDriverList")
-            nvidiaDriverLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$nvidiaDriverList")
+            buildTemp=$("$pbuddy" -c "Print updates:$index:OS" "$nvidiaDriverListTemp")
+            nvidiaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$nvidiaDriverListTemp")
+            nvidiaDriverLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$nvidiaDriverListTemp")
+            nvidiaDriverChecksumTemp=$("$pbuddy" -c "Print updates:$index:checksum" "$nvidiaDriverListTemp")
 
             if [ "$build" == "$buildTemp" ]
             then
                 nvidiaDriverDownloadVersion="$nvidiaDriverVersionTemp"
                 nvidiaDriverDownloadLink="$nvidiaDriverLinkTemp"
+                nvidiaDriverDownloadChecksum="$nvidiaDriverChecksumTemp"
                 foundMatchNvidiaDriver=true
             fi
         done
-        rm "$nvidiaDriverList"
+        rm "$nvidiaDriverListTemp"
+    elif "$customDriver"  && ( ! "$forceNvidiaDriverStable" )
+    then
+        nvidiaDriverLisTempt="$dirName""/nvidiaDriver.plist"
+        curl -s "$nvidiaDriverNListOnline" > "$nvidiaDriverListTemp"
+        drivers=$("$pbuddy" -c "Print updates:" "$nvidiaDriverListTemp" | grep "OS" | awk '{print $3}')
+        driverCount=$(echo "$drivers" | wc -l | xargs)
+        for index in `seq 0 $(expr $driverCount - 1)`
+        do
+            buildTemp=$("$pbuddy" -c "Print updates:$index:OS" "$nvidiaDriverListTemp")
+            nvidiaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$nvidiaDriverListTemp")
+            nvidiaDriverLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$nvidiaDriverListTemp")
+            nvidiaDriverChecksumTemp=$("$pbuddy" -c "Print updates:$index:checksum" "$nvidiaDriverListTemp")
+
+            if [ "$nvidiaDriverDownloadVersion" == "$nvidiaDriverVersionTemp" ]
+            then
+                nvidiaDriverDownloadVersion="$nvidiaDriverVersionTemp"
+                nvidiaDriverDownloadLink="$nvidiaDriverLinkTemp"
+                nvidiaDriverDownloadChecksum="$nvidiaDriverChecksumTemp"
+                foundMatchNvidiaDriver=true
+            fi
+        done
+        rm "$nvidiaDriverListTemp"
     else
-        nvidiaDriverList="$dirName""/nvidiaDriver.plist"
-        curl -s "$nvidiaDriverListOnline" > "$nvidiaDriverList"
-        drivers=$("$pbuddy" -c "Print updates:" "$nvidiaDriverList" | grep "OS" | awk '{print $3}')
+        nvidiaDriverListTemp="$dirName""/nvidiaDriver.plist"
+        curl -s "$nvidiaDriverListOnline" > "$nvidiaDriverListTemp"
+        drivers=$("$pbuddy" -c "Print updates:" "$nvidiaDriverListTemp" | grep "OS" | awk '{print $3}')
         driverCount=$(echo "$drivers" | wc -l | xargs)
         for index in `seq 0 $(expr $driverCount - 1)`
         do
-            buildTemp=$("$pbuddy" -c "Print updates:$index:build" "$nvidiaDriverList")
-            nvidiaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$nvidiaDriverList")
-            nvidiaDriverLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$nvidiaDriverList")
+            buildTemp=$("$pbuddy" -c "Print updates:$index:build" "$nvidiaDriverListTemp")
+            nvidiaDriverVersionTemp=$("$pbuddy" -c "Print updates:$index:version" "$nvidiaDriverListTemp")
+            nvidiaDriverLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$nvidiaDriverListTemp")
+            nvidiaDriverChecksumTemp=$("$pbuddy" -c "Print updates:$index:checksum" "$nvidiaDriverListTemp")
 
             if [ "$build" == "$buildTemp" ]
             then
                 nvidiaDriverDownloadVersion="$nvidiaDriverVersionTemp"
                 nvidiaDriverDownloadLink="$nvidiaDriverLinkTemp"
+                nvidiaDriverDownloadChecksum="$nvidiaDriverChecksumTemp"
                 foundMatchNvidiaDriver=true
             fi
         done
-        rm "$nvidiaDriverList"
+        rm "$nvidiaDriverListTemp"
     fi
 }
 
 ##  NVIDIA driver download
+function downloadNvidiaDriverDownloadFallback {
+    forceNvidiaDriverStable=true
+    downloadNvidiaDriverInformation
+    if "$foundMatchNvidiaDriver"
+    then
+        mktmpdir
+        curl -o "$dirName""/nvidiaDriver.pkg" "$nvidiaDriverDownloadLink"
+        nvidiaDriverChecksumTemp=$(shasum -a 512 -b "$dirName""/nvidiaDriver.pkg" | awk '{ print $1 }')
+        if [ "$nvidiaDriverDownloadChecksum" != "$nvidiaDriverChecksumTemp" ]
+        then
+            omitDriver=true
+        fi
+    else
+        omitDriver=true
+    fi
+}
 function downloadNvidiaDriver {
-    mktmpdir
-    curl -o "$dirName""/nvidiaDriver.pkg" "$nvidiaDriverDownloadLink"
+    downloadNvidiaDriverInformation
+    if "$foundMatchNvidiaDriver"
+    then
+        mktmpdir
+        curl -o "$dirName""/nvidiaDriver.pkg" "$nvidiaDriverDownloadLink"
+        nvidiaDriverChecksumTemp=$(shasum -a 512 -b "$dirName""/nvidiaDriver.pkg" | awk '{ print $1 }')
+        if [ "$nvidiaDriverDownloadChecksum" != "$nvidiaDriverChecksumTemp" ]
+        then
+            downloadNvidiaDriverDownloadFallback
+        fi
+    else
+        downloadNvidiaDriverDownloadFallback
+    fi
 }
 
 
 
 
+#   Subroutine D4: define enabler downloader
+##  eGPU enabler Information
+function downloadEnabler1013Information {
+    mktmpdir
+    enabler1013ListTemp="$dirName""/eGPUenabler.plist"
+    curl -s "$eGPUEnablerListOnline" > "$enabler1013ListTemp"
 
+    enablersTemp=$("$pbuddy" -c "Print updates:" "$enabler1013ListTemp" | grep "build" | awk '{print $3}')
+    enablerCountTemp=$(echo "$enablersTemp" | wc -l | xargs)
+    foundMatch=false
+    for index in `seq 0 $(expr $enablerCountTemp - 1)`
+    do
+        buildTemp=$("$pbuddy" -c "Print updates:$index:build" "$enabler1013ListTemp")
+        enabler1013ChecksumTemp=$("$pbuddy" -c "Print updates:$index:checksum" "$enabler1013ListTemp")
+        enabler1013PKGNameTemp=$("$pbuddy" -c "Print updates:$index:packageName" "$enabler1013ListTemp")
+        enabler1013DownloadLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$enabler1013ListTemp")
+        if [ "$build" == "$buildTemp" ]
+        then
+            enabler1013DownloadPKGName="$enabler1013PKGNameTemp"
+            enabler1013DownloadLink="$enabler1013DownloadLinkTemp"
+            enabler1013DownloadChecksum="$enabler1013ChecksumTemp"
+            foundMatchEnabler1013=true
+        fi
+    done
+    rm "$enabler1013ListTemp"
+}
 
-
-
-
-
+##  eGPU enabler download
+function downloadEnabler1013 {
+    downloadEnabler1013Information
+    if "$foundMatchEnabler1013"
+    then
+        mktmpdir
+        curl -o "$dirName""/enabler.zip" "$enabler1013DownloadLink"
+        enabler1013ChecksumTemp=$(shasum -a 512 -b "$dirName""/enabler.zip" | awk '{ print $1 }')
+        if [ "$enabler1013DownloadChecksum" != "$enabler1013ChecksumTemp" ]
+        then
+            omitEnabler=true
+        fi
+    else
+        omitEnabler=true
+    fi
+}
 
 
 
