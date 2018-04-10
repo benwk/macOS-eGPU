@@ -56,6 +56,8 @@ pbuddy="/usr/libexec/PlistBuddy"
 ##  static data download paths
 ### enabler paths
 enabler1013ListOnline="$gitPath""/Data/eGPUenabler1013.plist"
+enablerAMDLegacyDonwloadLink="https://egpu.io/wp-content/uploads/2018/04/automate-eGPU.kext_-1.zip"
+enablerAMDLegacyChecksum="2c93ef2e99423e0a1223d356772bd67d6083da69489fb3cf61dfbb69237eba1aaf453b7dc571cfe729e8b8bc1f92fcf29f675f60cd7dba9ec9b2723bac8f6bb7"
 ### NVIDIA driver paths
 nvidiaDriverNListOnline="https://gfe.nvidia.com/mac-update"
 nvidiaDriverListOnline="$gitPath""/Data/nvidiaDriver.plist"
@@ -128,6 +130,8 @@ enabler1013="/Library/Extensions/NVDAEGPUSupport.kext"
 tEnabler10131="/Library/Application Support/Purge-Wrangler/manifest.wglr"
 tEnabler10132="/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext/Contents/MacOS/AppleGPUWrangler"
 tEnabler10133="/usr/local/bin/purge-wrangler.sh"
+### AMD Legacy enabler
+AMDLegacyEnabler1="/Library/Extensions/automate-eGPU.kext"
 
 ##  dynamic test paths
 ### CUDA paths
@@ -174,9 +178,10 @@ foundMatchEnabler1013=false
 forceCudaDriverStable=false
 forceCudaToolkitStable=false
 forceNvidiaDriverStable=false
-omitEnabler=false
+omitEnabler1013=false
 omitTEnabler=false
-omitDriver=false
+omitAMDLegacyEnabler=false
+omitNvidiaDriver=false
 omitCuda=false
 exitScript=false
 
@@ -226,6 +231,8 @@ enabler1012gInstalled=false
 ####thunderbolt enabler
 tEnabler1013Installed=false
 tEnabler1013InstallStatus=0
+####AMD Legacy Enabler
+AMDLegacyEnablerInstalled=false
 
 
 
@@ -393,7 +400,7 @@ function checkRootPrivileges {
     if [ "$(id -u)" != 0 ]
     then
         echo "To continue elevated privileges are needed."
-        echo "Please enter your password below here:"
+        echo "Please enter your password below:"
         sudo -v
     fi
     }
@@ -902,20 +909,8 @@ function checkTEnabler1013Install {
 
 
 
-#   Subroutine B8: fetch all installations at once
-function fetchInstalledSoftware {
-    checkCudaInstall
-    checkNvidiaDriverInstall
-    checkEnabler1012gInstall
-    checkEnabler1012rInstall
-    checkEnabler1013Install
-    checkTEnabler1013Install
-}
 
-
-
-
-#   Subroutine B9: fetch all installed programs in /Applications
+#   Subroutine B8: fetch all installed programs in /Applications
 function fetchInstalledPrograms {
     appListPathsTemp="$(find /Applications/ -iname *.app)"
     appListTemp=""
@@ -930,12 +925,32 @@ function fetchInstalledPrograms {
 
 
 
-#   Subroutines B10: check if NVIDIA dGPU is installed
-function fetchNvidiaDGPU {
+#   Subroutines B9: check if NVIDIA dGPU, thunderbolt peripherals and external Monitors are connected
+function fetchSystemStatus {
 
 }
 
 
+function checkAMDLagacyEnabler {
+    if [ -e "$AMDLegacyEnabler1" ]
+    then
+        AMDLegacyEnablerInstalled=true
+    fi
+}
+
+
+
+
+#   Subroutine B10: fetch all installations at once
+function fetchInstalledSoftware {
+    checkCudaInstall
+    checkNvidiaDriverInstall
+    checkEnabler1012gInstall
+    checkEnabler1012rInstall
+    checkEnabler1013Install
+    checkTEnabler1013Install
+    checkAMDLagacyEnabler
+}
 
 #   Subroutine C: Custom uninstall scripts ##############################################################################################################
 function genericUninstaller {
@@ -1140,8 +1155,12 @@ function uninstallTEnabler1013 {
         sudo bash "$tEnabler10133" recover
         if [ -e "$tEnabler10133" ]
         then
-            rm -rf "$tEnabler10133"
+            sudo rm -rf "$tEnabler10133"
         fi
+        listOfChanges="$listOfChanges""\n""-Thunderbolt unlock has been uninstalled"
+        scheduleReboot=true
+        doneSomething=true
+        scheduleKextTouch=true
     fi
     checkTEnabler1013Install
 }
@@ -1149,8 +1168,23 @@ function uninstallTEnabler1013 {
 
 
 
+#   Subroutine D7: define AMD Legacy uninstaller
+function uninstallAMDLagacyEnabler {
+    if [ -e "$AMDLegacyEnabler1" ]
+    then
+        sudo rm -rf "$AMDLegacyEnabler1"
+        listOfChanges="$listOfChanges""\n""-AMD Legacy enabler has been uninstalled"
+        scheduleReboot=true
+        doneSomething=true
+        scheduleKextTouch=true
+    fi
+}
+
+
+
+
 #   Subroutine E: Downloader ##############################################################################################################
-#   Subroutine D1: define CUDA driver downloader
+#   Subroutine E1: define CUDA driver downloader
 ##  CUDA driver Information
 function downloadCudaDriverInformation {
     mktmpdir
@@ -1226,7 +1260,7 @@ function downloadCudaDriver {
 
 
 
-#   Subroutine D2: define CUDA toolkit downloader
+#   Subroutine E2: define CUDA toolkit downloader
 ##  CUDA toolkit Information
 function downloadCudaToolkitInformation {
     mktmpdir
@@ -1302,7 +1336,7 @@ function downloadCudaToolkit {
 
 
 
-#   Subroutine D3: define NVIDIA driver downloader
+#   Subroutine E3: define NVIDIA driver downloader
 ##  NVIDIA driver Information
 function downloadNvidiaDriverInformation {
     mktmpdir
@@ -1386,10 +1420,10 @@ function downloadNvidiaDriverDownloadFallback {
         nvidiaDriverChecksumTemp=$(shasum -a 512 -b "$dirName""/nvidiaDriver.pkg" | awk '{ print $1 }')
         if [ "$nvidiaDriverDownloadChecksum" != "$nvidiaDriverChecksumTemp" ]
         then
-            omitDriver=true
+            omitNvidiaDriver=true
         fi
     else
-        omitDriver=true
+        omitNvidiaDriver=true
     fi
 }
 function downloadNvidiaDriver {
@@ -1411,7 +1445,7 @@ function downloadNvidiaDriver {
 
 
 
-#   Subroutine D4: define enabler downloader
+#   Subroutine E4: define enabler downloader
 ##  eGPU enabler Information
 function downloadEnabler1013Information {
     mktmpdir
@@ -1448,10 +1482,13 @@ function downloadEnabler1013 {
         enabler1013ChecksumTemp=$(shasum -a 512 -b "$dirName""/enabler.zip" | awk '{ print $1 }')
         if [ "$enabler1013DownloadChecksum" != "$enabler1013ChecksumTemp" ]
         then
-            omitEnabler=true
+            omitEnabler1013=true
+        else
+            unzip -qq "$dirName""/enabler.zip" -d "$dirName""/"
         fi
+        rm -rf "$dirName""/enabler.zip"
     else
-        omitEnabler=true
+        omitEnabler1013=true
     fi
 }
 
@@ -1459,21 +1496,132 @@ function downloadEnabler1013 {
 
 
 
+#   Subroutine E5: define AMD support downloader
+##  AMD eGPU enabler Information
+function downloadAMDLagacyEnabler {
+    mktmpdir
+    curl -o "$dirName""/AMDLegacy.zip" "$enablerAMDLegacyDonwloadLink"
+    enablerAMDLegacyChecksumTemp=$(shasum -a 512 -b "$dirName""/AMDLegacy.zip" | awk '{ print $1 }')
+    if [ "$enablerAMDLegacyChecksum" != "$enablerAMDLegacyChecksumTemp ]
+    then
+        omitAMDLegacyEnabler=true
+    else
+        unzip -qq "$dirName""/AMDLegacy.zip" -d "$dirName""/"
+    fi
+    rm -rf "$dirName""/AMDLegacy.zip"
+}
 
 
 
 
 
 
+#   Subroutine F: Installer ##############################################################################################################
+#   Subroutine F1: define CUDA driver installer
+function installCudaDriver {
+    if ! "$omitCuda"
+    then
+        if [ -e "$cudaDriverVolPath""$cudaDriverPKGName" ]
+        then
+            sudo installer -pkg "$cudaDriverVolPath""$cudaDriverPKGName" -target / &>/dev/null
+            listOfChanges="$listOfChanges""\n""-CUDA drivers have been installed"
+            scheduleReboot=true
+            doneSomething=true
+            scheduleKextTouch=true
+            hdiutil detach "$cudaDriverVolPath" -quiet
+            rm -rf "$dirName""/cudaDriver.dmg"
+        fi
+    fi
+}
 
 
 
 
+#   Subroutine F2: define CUDA toolkit installer
+function installCudaToolkitBranch {
+    if ! "$omitCuda"
+    then
+        if [ -e "$cudaToolkitVolPath""$cudaToolkitPKGName" ]
+        then
+            if [ "$cuda" == 2 ]
+            then
+                sudo "$cudaToolkitVolPath""$cudaToolkitPKGName" --accept-eula --silent --no-window --install-package="cuda-driver" &>/dev/null
+                listOfChanges="$listOfChanges""\n""-CUDA developer drivers have been installed"
+                scheduleReboot=true
+                doneSomething=true
+                scheduleKextTouch=true
+            elif [ "$cuda" == 3 ]
+            then
+                sudo "$cudaToolkitVolPath""$cudaToolkitPKGName" --accept-eula --silent --no-window --install-package="cuda-driver" --install-package="cuda-toolkit" &>/dev/null
+                listOfChanges="$listOfChanges""\n""-CUDA developer drivers have been installed"
+                listOfChanges="$listOfChanges""\n""-CUDA toolkit has been installed"
+                scheduleReboot=true
+                doneSomething=true
+                scheduleKextTouch=true
+            elif [ "$cuda" == 4 ]
+                sudo "$cudaToolkitVolPath""$cudaToolkitPKGName" --accept-eula --silent --no-window --install-package="cuda-driver" --install-package="cuda-toolkit" --install-package="cuda-samples" &>/dev/null
+                listOfChanges="$listOfChanges""\n""-CUDA developer drivers have been installed"
+                listOfChanges="$listOfChanges""\n""-CUDA toolkit has been installed"
+                listOfChanges="$listOfChanges""\n""-CUDA samples have been installed"
+                scheduleReboot=true
+                doneSomething=true
+                scheduleKextTouch=true
+            fi
+            hdiutil detach "$cudaToolkitVolPath" -quiet
+            rm -rf "$dirName""/cudaToolkit.dmg"
+        fi
+    fi
+}
 
 
+#   Subroutine F3: define NVIDIA driver installer
+##  Patch installation requirements for new NVIDIA drivers
+function patchNvidiaDriverNew {
+    mktmpdir
+    fetchOSinfo
+
+    expansionTemp="$dirName""/nvidiaDriverExpansion"
+    payloadTemp="$dirName""/payloadExpansion"
+    mkdir "$payloadTemp"
 
 
+    sudo pkgutil --expand "$dirName""/nvidiaDriver.pkg" "$expansionTemp"
 
+    driverPathTemp=$(ls "$expansionTemp" | grep "NVWebDrivers.pkg")
+    driverPathTemp="$expansionTemp""/""$driverPathTemp"
+
+    sudo cat "$expansionTemp""/Distribution" | sed '/installation-check/d' | sudo tee "$expansionTemp""/PatchDist" &> /dev/null
+    sudo mv "$expansionTemp""/PatchDist" "$expansionTemp""/Distribution"
+
+    (cd "$payloadTemp"; sudo cat "$driverPathTemp""/Payload" | gunzip -dc | cpio -i --quiet)
+    $pbuddy -c "Set IOKitPersonalities:NVDAStartup:NVDARequiredOS ""$build" "$payloadTemp""/Library/Extensions/NVDAStartupWeb.kext/Contents/Info.plist"
+    sudo chown -R root:wheel "$payloadTemp/"*
+
+    (cd "$payloadTemp"; sudo find . | sudo cpio -o --quiet | gzip -c | sudo tee "$driverPathTemp""/Payload" &> /dev/null)
+    (cd "$payloadTemp"; sudo mkbom . "$driverPathTemp""/Bom")
+
+    sudo rm -rf "$payloadTemp"
+    sudo rm -rf "$dirName""/nvidiaDriver.pkg"
+
+    sudo pkgutil --flatten "$expansionTemp" "$dirName""/nvidiaDriver.pkg"
+    sudo chown "$(id -un):$(id -gn)" "$dirName""/nvidiaDriver.pkg"
+
+    sudo rm -rf "$expansionTemp"
+}
+
+function patchNvidiaDriverOld {
+    sudo "$pbuddy" -c "Set IOKitPersonalities:NVDAStartup:NVDARequiredOS ""$build" "$nvidiaDriverVersionPath"
+}
+
+function installNvidiaDriver {
+    if ! "$omitNvidiaDriver"
+    then
+        if [ -e "$dirName""/nvidiaDriver.pkg" ]
+        then
+            sudo installer -pkg "$dirName""/nvidiaDriver.pkg" -target / &>/dev/null
+        fi
+    fi
+}
 
 
 

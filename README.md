@@ -6,6 +6,9 @@
 - add support for AMD, also legacy support
 - come up with a good installer logic (already have something in mind)
 - add echoing to the script. It's almost dead silent atm.
+- add versions to list of changes
+- add `--silent`
+- add `--acceptLicenseTerms`
 - rethink the parameters and shorts
 - add eGPU detection so script won't install/uninstall with eGPU attached (`--check` will be OK)
 - add deactivation of auto-updaters
@@ -15,3 +18,5 @@
 - write README
 - write Thread Post
 - test, bug fix, test, bug fix, test…
+
+patchNvidiaDriverNew is strongly inspired by Banjamin-Dobell’s nvidia-update.sh.
