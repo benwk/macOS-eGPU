@@ -116,10 +116,9 @@ if [ "$superUser" == 0 ]
     kextcache -q -update-volume /
     touch /System/Library/Extensions
     kextcache -system-caches
-    rm -rfv "$dirName"
-    hdiutil detach "/Volumes/macOS High Sierra 10.13.3 Update Combo/"
 
-    (curl -s "https://raw.githubusercontent.com/mayankk2308/purge-wrangler/master/purge-wrangler.sh" | sudo sh)
+    hdiutil detach "/Volumes/macOS High Sierra 10.13.3 Update Combo/"
+    rm -rfv "$dirName"
     echo "The script has finished."
     reboot &
 fi
