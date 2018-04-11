@@ -33,7 +33,9 @@ function exitFail {
 superUser=$(id -u)
 if [ "$superUser" == 0 ]
 then
-    if [ "$1" == "--uninstall" ]
+    echo "Shall the script install or uninstall:"
+    read -p "[i]nstall/[u]ninstall" -n 1 -r
+    if [ "$REPLY" == "u" ]
     then
         echo "The script will now uninstall..."
         echo "DO NOT STOP THE SCRIPT!"
@@ -62,7 +64,7 @@ then
         echo "The script has finished."
         reboot &
         exit 0
-    elif [ "$1" == "--install" ]
+    elif [ "$REPLY" == "i" ]
     then
         mkdir "$dirName"
         echo "The script will now install..."
