@@ -24,7 +24,7 @@ dirName="/var/tmp/""macOS-eGPU-""$dirName"
 mkdir "$dirName"
 
 function exitFail {
-    sudo rm -rfv "$dirName"
+    rm -rfv "$dirName"
     hdiutil detach "/Volumes/macOS High Sierra 10.13.3 Update Combo/"
     echo
     echo "The script has failed."
@@ -82,21 +82,21 @@ if [ "$superUser" == 0 ]
     if [ -e "/Library/PreferencePanes/NVIDIA Driver Manager.prefPane/Contents/MacOS/NVIDIA Web Driver Uninstaller.app/Contents/Resources/NVUninstall.pkg" ]
     then
         echo
-        sudo installer -pkg "/Library/PreferencePanes/NVIDIA Driver Manager.prefPane/Contents/MacOS/NVIDIA Web Driver Uninstaller.app/Contents/Resources/NVUninstall.pkg" -target /
+        installer -pkg "/Library/PreferencePanes/NVIDIA Driver Manager.prefPane/Contents/MacOS/NVIDIA Web Driver Uninstaller.app/Contents/Resources/NVUninstall.pkg" -target /
     fi
-    sudo installer -pkg "$dirName"/"nvidiaDriver.pkg" -target /
+    installer -pkg "$dirName"/"nvidiaDriver.pkg" -target /
 
     echo "Installing enabler..."
     if [ -e "/Library/Extensions/NVDAEGPUSupport.kext" ]
     then
         echo
-        sudo rm -rfv "/Library/Extensions/NVDAEGPUSupport.kext"
+        rm -rfv "/Library/Extensions/NVDAEGPUSupport.kext"
     fi
-    sudo installer -pkg "$dirName""/enabler/NVDAEGPUSuppor-v8.pkg" -target /
+    installer -pkg "$dirName""/enabler/NVDAEGPUSuppor-v8.pkg" -target /
 
     echo "expanding package..."
     sleep 1
-    sudo pkgutil --expand "/Volumes/macOS High Sierra 10.13.3 Update Combo/macOSUpdCombo10.13.3.pkg" "$dirName""/macUpdateExpansion"
+    pkgutil --expand "/Volumes/macOS High Sierra 10.13.3 Update Combo/macOSUpdCombo10.13.3.pkg" "$dirName""/macUpdateExpansion"
     echo "Parsing package contents..."
     sleep 1
     mkdir "$dirName""/parsedUpdate"
@@ -104,24 +104,24 @@ if [ "$superUser" == 0 ]
 
     echo "Creating KEXT Backup"
     mkdir "/Library/Application Support/nvidia10134"
-    sudo cp -n -R "/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext" "/Library/Application Support/nvidia10134/"
+    cp -n -R "/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext" "/Library/Application Support/nvidia10134/"
 
     echo "Patching System..."
-   sudo rm -rfv "/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext"
-   sudo cp -R -f -v "$dirName""/parsedUpdate/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext" "/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/"
+   rm -rfv "/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext"
+   cp -R -f -v "$dirName""/parsedUpdate/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext" "/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/"
 
-    sudo chown -R root:wheel /System/Library/Extensions/AppleGraphicsControl.kext/Contents/Plugins/AppleGPUWrangler.kext
-    sudo chmod -R 755 /System/Library/Extensions/AppleGraphicsControl.kext/Contents/Plugins/AppleGPUWrangler.kext
-    sudo touch /System/Library/Extensions
+    chown -R root:wheel /System/Library/Extensions/AppleGraphicsControl.kext/Contents/Plugins/AppleGPUWrangler.kext
+    chmod -R 755 /System/Library/Extensions/AppleGraphicsControl.kext/Contents/Plugins/AppleGPUWrangler.kext
+    touch /System/Library/Extensions
     kextcache -q -update-volume /
-    sudo touch /System/Library/Extensions
+    touch /System/Library/Extensions
     kextcache -system-caches
-    sudo rm -rfv "$dirName"
+    rm -rfv "$dirName"
     hdiutil detach "/Volumes/macOS High Sierra 10.13.3 Update Combo/"
 
-    (curl -o "https://raw.githubusercontent.com/mayankk2308/purge-wrangler/master/purge-wrangler.sh" | sudo bash)
+    bash <(curl -o "https://raw.githubusercontent.com/mayankk2308/purge-wrangler/master/purge-wrangler.sh") patch
     echo "The script has finished."
-    sudo reboot &
+    reboot &
 fi
 
 
