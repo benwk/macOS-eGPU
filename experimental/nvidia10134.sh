@@ -31,15 +31,8 @@ function exitFail {
     exit
 }
 
-
-if [ "$1" != "--acceptLicenseTerms" ]
-then
-    echo "You must accept the license terms."
-    exit
-fi
-
-if [ "$2" == "--install" ]
-then
+superUser=$(id -u)
+if [ "$superUser" == 0 ]
     echo "The script will now install..."
     echo "DO NOT STOP THE SCRIPT!"
     trap '' INT
@@ -116,6 +109,7 @@ then
     echo "Patching System..."
    sudo rm -rfv "/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext"
    sudo cp -R -f -v "$dirName""/parsedUpdate/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/AppleGPUWrangler.kext" "/System/Library/Extensions/AppleGraphicsControl.kext/Contents/PlugIns/"
+
     sudo chown -R root:wheel /System/Library/Extensions/AppleGraphicsControl.kext/Contents/Plugins/AppleGPUWrangler.kext
     sudo chmod -R 755 /System/Library/Extensions/AppleGraphicsControl.kext/Contents/Plugins/AppleGPUWrangler.kext
     sudo touch /System/Library/Extensions
@@ -124,6 +118,8 @@ then
     kextcache -system-caches
     sudo rm -rfv "$dirName"
     hdiutil detach "/Volumes/macOS High Sierra 10.13.3 Update Combo/"
+
+    (curl -o "https://raw.githubusercontent.com/mayankk2308/purge-wrangler/master/purge-wrangler.sh" | sudo bash)
     echo "The script has finished."
     sudo reboot &
 fi
