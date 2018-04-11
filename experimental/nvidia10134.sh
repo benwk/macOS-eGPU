@@ -42,7 +42,7 @@ if [ "$2" == "--install" ]
 then
     echo "The script will now install..."
     echo "DO NOT STOP THE SCRIPT!"
-#    trap '' INT
+    trap '' INT
     echo "Downloading content and preparing content..."
     sleep 1
     echo
