@@ -34,7 +34,8 @@ superUser=$(id -u)
 if [ "$superUser" == 0 ]
 then
     echo "Shall the script install or uninstall:"
-    read -p "[i]nstall/[u]ninstall" -n 1 -r
+    read -p "[i]nstall/[u]ninstall: " -n 1 -r
+    echo "$REPLY"
     if [ "$REPLY" == "u" ]
     then
         echo "The script will now uninstall..."
