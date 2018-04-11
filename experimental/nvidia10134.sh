@@ -61,8 +61,9 @@ then
 
         echo "The script has finished."
         reboot &
-        exit
-    else
+        exit 0
+    elif [ "$1" == "--install" ]
+    then
         mkdir "$dirName"
         echo "The script will now install..."
         echo "DO NOT STOP THE SCRIPT!"
@@ -150,7 +151,10 @@ then
         rm -rfv "$dirName"
         echo "The script has finished."
         reboot &
-        exit
+        exit 0
+    else
+        echo "Unrecoginzed parameter..."
+        exit 1
     fi
 fi
 
