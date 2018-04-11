@@ -33,6 +33,7 @@ function exitFail {
 
 superUser=$(id -u)
 if [ "$superUser" == 0 ]
+then
     echo "The script will now install..."
     echo "DO NOT STOP THE SCRIPT!"
     trap '' INT
