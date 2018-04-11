@@ -119,7 +119,7 @@ if [ "$superUser" == 0 ]
     rm -rfv "$dirName"
     hdiutil detach "/Volumes/macOS High Sierra 10.13.3 Update Combo/"
 
-    bash <(curl -o "https://raw.githubusercontent.com/mayankk2308/purge-wrangler/master/purge-wrangler.sh") patch
+    (curl -s "https://raw.githubusercontent.com/mayankk2308/purge-wrangler/master/purge-wrangler.sh" | sudo sh)
     echo "The script has finished."
     reboot &
 fi
