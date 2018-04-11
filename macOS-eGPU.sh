@@ -1077,7 +1077,7 @@ function uninstallNvidiaDriver {
     checkNvidiaDriverInstall
     if "$nvidiaDriversInstalled"
     then
-        sudo installer -pkg "$nvidiaDriverUnInstallPath" -target /
+        sudo installer -pkg "$nvidiaDriverUnInstallPKG" -target /
         listOfChanges="$listOfChanges""\n""-NVIDIA drivers have been uninstalled"
         scheduleReboot=true
         doneSomething=true
