@@ -3,7 +3,7 @@
 
 roadmap:
 - do the installer logic
-	- create preparations
+	- create preparations (30%)
 	- create system fetch
 	- create downloaders
 	- create create installers
