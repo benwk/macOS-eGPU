@@ -11,5 +11,7 @@ roadmap:
 - test (10%)
 
 
-ETC: 1.05.’18 (80% sure)
+ETC: 1.05.’18 (30% sure)
+ETC: 2.05.’18 (60% sure)
 ETC: 3.05.’18 (99% sure)
++Testing!
