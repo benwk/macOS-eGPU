@@ -5,13 +5,13 @@ roadmap:
 - do the installer logic
 	- create preparations (100%)
 	- create system fetch (100%)
-	- create downloaders
-	- create create installers
+	- create downloaders (40%)
+	- create create installers (40%)
 	- create finishing
-- test (10%)
+- test (11%)
 
 
-ETC: 1.05.’18 (30% sure)  
-ETC: 2.05.’18 (60% sure)  
-ETC: 3.05.’18 (99% sure)  
-+Testing!
+ETC: 3.05.’18 (70% sure)  
+ETC: 4.05.’18 (90% sure)  
++Testing!  
+(A lot of work has piled up; I’m sorry to keep you all waiting. It try my best to get it out asap)
