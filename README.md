@@ -5,9 +5,11 @@ roadmap:
 - do the installer logic
 	- create preparations (100%)
 	- create system fetch (100%)
-	- create downloaders (40%)
+	- create downloaders (100%)
+	- create create uninstallers (100%)
 	- create create installers (40%)
-	- create finishing
+	- create create patcher (0%)
+	- create finishing (0%)
 - test (11%)
 
 
