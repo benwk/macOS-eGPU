@@ -2,15 +2,19 @@
 # THIS **WILL BREAK YOUR SYSTEM**
 
 roadmap:
-- do the installer logic
-	- create preparations (100%)
-	- create system fetch (100%)
-	- create downloaders (100%)
-	- create create uninstallers (100%)
-	- create create installers (40%)
-	- create create patcher (0%)
-	- create finishing (0%)
-- test (11%)
+- create finishing (0%)
+	- print info; will be sparse atm (0%)
+	- check secure execution (0%)
+	- speed up processes (0%)
+- test (15%)
+	- download logic (100%)
+	- uninstall logic (0%)
+	- install logic (0%)
+	- patch logic (0%)
+	- security (0%)
+	- error catch (0%)
+
+-\> sometime in the future an emergency purge script will be available
 
 
 ETC: 3.05.’18 (70% sure)  
