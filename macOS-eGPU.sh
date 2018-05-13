@@ -1587,29 +1587,33 @@ function uninstallNvidiaEGPUenabler1013 {
 ##  Subroutine E4: Downloader
 function downloadNvidiaEGPUenabler1013Information {
     mktmpdir
-    nvidiaEGPUenabler1013ListTemp="$dirName""/eGPUenabler.plist"
-    curl -s "$nvidiaEGPUenabler1013ListOnline" -m 1024 > "$nvidiaEGPUenabler1013ListTemp"
-    if [ "$?" == 0 ]
-    then
-        enablersTemp=$("$pbuddy" -c "Print updates:" "$nvidiaEGPUenabler1013ListTemp" | grep "build" | awk '{print $3}')
-        enablerCountTemp=$(echo "$enablersTemp" | wc -l | xargs)
-        foundMatchNvidiaEGPUenabler1013=false
-        for index in `seq 0 $(expr $enablerCountTemp - 1)`
-        do
-            buildTemp=$("$pbuddy" -c "Print updates:$index:build" "$nvidiaEGPUenabler1013ListTemp")
-            nvidiaEGPUenabler1013ChecksumTemp=$("$pbuddy" -c "Print updates:$index:checksum" "$nvidiaEGPUenabler1013ListTemp")
-            nvidiaEGPUenabler1013PKGNameTemp=$("$pbuddy" -c "Print updates:$index:packageName" "$nvidiaEGPUenabler1013ListTemp")
-            nvidiaEGPUenabler1013DownloadLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$nvidiaEGPUenabler1013ListTemp")
-            if [ "$build" == "$buildTemp" ]
-            then
-                nvidiaEGPUenabler1013DownloadPKGName="$nvidiaEGPUenabler1013PKGNameTemp"
-                nvidiaEGPUenabler1013DownloadLink="$nvidiaEGPUenabler1013DownloadLinkTemp"
-                nvidiaEGPUenabler1013DownloadChecksum="$nvidiaEGPUenabler1013ChecksumTemp"
-                foundMatchNvidiaEGPUenabler1013=true
-            fi
-        done
-        rm "$nvidiaEGPUenabler1013ListTemp"
-    fi
+#    nvidiaEGPUenabler1013ListTemp="$dirName""/eGPUenabler.plist"
+#    curl -s "$nvidiaEGPUenabler1013ListOnline" -m 1024 > "$nvidiaEGPUenabler1013ListTemp"
+#    if [ "$?" == 0 ]
+#    then
+#        enablersTemp=$("$pbuddy" -c "Print updates:" "$nvidiaEGPUenabler1013ListTemp" | grep "build" | awk '{print $3}')
+#        enablerCountTemp=$(echo "$enablersTemp" | wc -l | xargs)
+#        foundMatchNvidiaEGPUenabler1013=false
+#        for index in `seq 0 $(expr $enablerCountTemp - 1)`
+#        do
+#            buildTemp=$("$pbuddy" -c "Print updates:$index:build" "$nvidiaEGPUenabler1013ListTemp")
+#            nvidiaEGPUenabler1013ChecksumTemp=$("$pbuddy" -c "Print updates:$index:checksum" "$nvidiaEGPUenabler1013ListTemp")
+#            nvidiaEGPUenabler1013PKGNameTemp=$("$pbuddy" -c "Print updates:$index:packageName" "$nvidiaEGPUenabler1013ListTemp")
+#            nvidiaEGPUenabler1013DownloadLinkTemp=$("$pbuddy" -c "Print updates:$index:downloadURL" "$nvidiaEGPUenabler1013ListTemp")
+#            if [ "$build" == "$buildTemp" ]
+#            then
+#                nvidiaEGPUenabler1013DownloadPKGName="$nvidiaEGPUenabler1013PKGNameTemp"
+#                nvidiaEGPUenabler1013DownloadLink="$nvidiaEGPUenabler1013DownloadLinkTemp"
+#                nvidiaEGPUenabler1013DownloadChecksum="$nvidiaEGPUenabler1013ChecksumTemp"
+#                foundMatchNvidiaEGPUenabler1013=true
+#            fi
+#        done
+#        rm "$nvidiaEGPUenabler1013ListTemp"
+#    fi
+    nvidiaEGPUenabler1013DownloadPKGName="NVDAEGPUSupport.pkg"
+    nvidiaEGPUenabler1013DownloadLink="https://egpu.io/wp-content/uploads/wpforo/attachments/6469/5130-NVDAEGPUSupportUniversal.zip"
+    nvidiaEGPUenabler1013DownloadChecksum="ed1dbef44a918d034b4c47ce996c62365871488de652fdd14104e79820daa54ecb63977bef6fbe5c6337918635224b32b607cb543cb1d5209080640ea2d6d377"
+    foundMatchNvidiaEGPUenabler1013=true
 }
 
 function downloadNvidiaEGPUenabler1013 {
