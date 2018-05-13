@@ -37,7 +37,7 @@
 
 
 #   script specific information
-branch="master"
+branch="macos10135"
 warningOS="10.13.5"
 currentOS="10.13.4"
 gitPath="https://raw.githubusercontent.com/learex/macOS-eGPU/""$branch"
@@ -3448,7 +3448,7 @@ function checkScriptRequirement {
         waiter 10
     fi
     fetchAppleGPUWranglerVersion
-    if ! [[ "$appleGPUWranglerVersion" =~ "$build" ]]
+    if ( ! [[ "$appleGPUWranglerVersion" =~ "$build" ]] ) && [ "$os" != "$warningOS" ]
     then
         echo "You use the old wrangler patch. Please follow instructions on eGPU.io/GitHub."
         irupt
